@@ -127,6 +127,33 @@ That's it!
 [`perform_later`]: https://api.rubyonrails.org/classes/ActiveJob/Enqueuing/ClassMethods.html#method-i-perform_later
 [`set`]: https://api.rubyonrails.org/classes/ActiveJob/Core/ClassMethods.html#method-i-set
 
+### Bulk Enqueuing 
+Enqueue multiple jobs using [`perform_all_later`][] as well.
+
+`perform_all_later` is a top-level api on `ActiveJob`. It accepts instantiated jobs as arguments (note that this is different from `perform_later`) It does call `perform` under the hood. The arguments passed to a `new` will be passed on to `perform` when it's eventually called.
+
+Call with an array of job instances:
+
+```ruby
+>> job1 = GuestsCleanupJob.new("guest1")
+>> job2 = GuestsCleanupJob.new("guest2")
+>> job3 = GuestsCleanupJob.new("guest3")
+
+# Will enqueue a seperate job for each guest
+>> ActiveJob.perform_all_later(job1, job2, job3)
+Enqueued 3 jobs to Async (3 GuestsCleanupJob)
+```
+`perform_all_later` logs the number of jobs successfully enqueued. The return value is `nil`.
+
+```ruby
+# logs the number of jobs that were successfully enqueued
+ActiveJob.perform_all_later([guest1, guest2, guest3])
+```
+
+NOTE: `perform_all_later` does not run any callbacks. This is inline with other ActiveRecord bulk methods. Since callbacks run on individual jobs, they can't take advantage of the bulk nature of this method. Also there isn't a meaningful semantic for something like `around_enqueue` callback.
+
+[`perform_all_later`]: https://github.com/rails/rails/blob/b1d57fb8c87d771d9a74ac31cd9969e6806b03b2/activejob/lib/active_job/enqueuing.rb#L16 
+
 Job Execution
 -------------
 
@@ -342,6 +369,7 @@ class ApplicationJob < ActiveJob::Base
   before_enqueue { |job| $statsd.increment "#{job.class.name.underscore}.enqueue" }
 end
 ```
+Note that the bulk enque method `perform_all_later` does not run any callbacks.
 
 ### Available Callbacks
 
@@ -415,7 +443,7 @@ ActiveJob supports the following types of arguments by default:
 
 ### GlobalID
 
-Active Job supports [GlobalID](https://github.com/rails/globalid/blob/main/README.md) for parameters. This makes it possible to pass live
+Active Job supports [GlobalID](https://github.com/rails/globalid/blob/master/README.md) for parameters. This makes it possible to pass live
 Active Record objects to your job instead of class/id pairs, which you then have
 to manually deserialize. Before, jobs would look like this:
 
