@@ -21,14 +21,14 @@ This guide focuses on the interaction between Controllers and Views in the Model
 
 The Controller to View interaction has two parts. First part involves the Controller deciding what type of response to send and using appropriate method to create that response. If the response is a full-blown view, it's wrapped in the correct layout and view partials are pulled in as well.
 
-Rendering Views by Default
---------------------------
+Rendering Views by Convention
+-----------------------------
 
-Controllers in Rails automatically render views with names that match controller action names that correspond to [CRUD verbs and routes](routing.html#crud-verbs-and-actions).
+By default, Controllers in Rails automatically render views with names that match controller action names and correspond to [CRUD verbs and routes](routing.html#crud-verbs-and-actions).
 
 NOTE: Default rendering of views that match controller action names is an excellent example of the ["convention over configuration"](https://rubyonrails.org/doctrine#convention-over-configuration) technique that Rails promotes.
 
-For example, if you have this code in your `BooksController` class:
+For example, if you have an empty Controller class `BooksController`:
 
 ```ruby
 class BooksController < ApplicationController
@@ -41,15 +41,26 @@ And the following in your routes file:
 resources :books
 ```
 
-And you have a view file `app/views/books/index.html.erb`:
+And you have a view file `index.html.erb` at the default location `app/views/books/` with this:
 
 ```html+erb
 <h1>Books are coming soon!</h1>
 ```
 
-Rails will automatically render `app/views/books/index.html.erb` when you navigate to `/books` and you will see "Books are coming soon!" on your screen.
+When you navigate to `/books`, Rails will automatically render `app/views/books/index.html.erb`. And you will see "Books are coming soon!" on your screen. This is because Rails is using naming conventions for routes, controller actions, and view files as well as the view file location to find and render the `index` view in response to navigating to `/books`. 
 
-However, a coming soon screen is only minimally useful, so you will soon create your `Book` model and add the index action to `BooksController`:
+This is not magic. It is "convention over configuration" in action. You can imagine that the following code implicitly exists in `BooksController` class:
+
+```ruby
+# We do not explicitly need to write this boilerplate code.
+class BooksController < ApplicationController
+  def index
+    render :index
+  end
+end
+```
+
+Once you need to do anything other than `render :index` from the `index` action, you'd define the `index` method. If you create a `Book` model and add the following index action to `BooksController`:
 
 ```ruby
 class BooksController < ApplicationController
@@ -59,9 +70,11 @@ class BooksController < ApplicationController
 end
 ```
 
-Note that we don't have explicit render at the end of the index action in accordance with "convention over configuration" principle. The rule is that if you do not explicitly render something at the end of a controller action, Rails will automatically look for the `action_name.html.erb` template in the controller's view path and render it. So in this case, Rails will render the `app/views/books/index.html.erb` file.
+This will find and render the same `index.html.erb` file. Note that we still do not need to have an explicit `render` statement at the end of the `index` action.
 
-If we want to display the properties of all the books in our view, we can do so with an ERB template like this:
+The rule is that if you do not explicitly render something at the end of a controller action, Rails will automatically look for the `action_name.html.erb` view in the controller's view path and render it. So in this case, Rails will render the `app/views/books/index.html.erb` file.
+
+And now that we have a `Book` model and `@books` instance variable available we would modify the `index` view to display the properties of all the books something like this:
 
 ```html+erb
 <h1>Listing Books</h1>
