@@ -482,171 +482,6 @@ private
   end
 ```
 
-Finding Layouts
----------------
-
-To find the current layout, Rails first looks for a file in `app/views/layouts` with the same base name as the controller. For example, rendering actions from the `PhotosController` class will use `app/views/layouts/photos.html.erb` (or `app/views/layouts/photos.builder`). If there is no such controller-specific layout, Rails will use `app/views/layouts/application.html.erb` or `app/views/layouts/application.builder`. If there is no `.erb` layout, Rails will use a `.builder` layout if one exists. Rails also provides several ways to more precisely assign specific layouts to individual controllers and actions.
-
-### Specifying Layouts for Controllers
-
-You can override the default layout conventions in your controllers by using the [`layout`][] declaration. For example:
-
-```ruby
-class ProductsController < ApplicationController
-  layout "inventory"
-  #...
-end
-```
-
-With this declaration, all of the views rendered by the `ProductsController` will use `app/views/layouts/inventory.html.erb` as their layout.
-
-To assign a specific layout for the entire application, use a `layout` declaration in your `ApplicationController` class:
-
-```ruby
-class ApplicationController < ActionController::Base
-  layout "main"
-  #...
-end
-```
-
-With this declaration, all of the views in the entire application will use `app/views/layouts/main.html.erb` for their layout.
-
-[`layout`]: https://api.rubyonrails.org/classes/ActionView/Layouts/ClassMethods.html#method-i-layout
-
-### Choosing Layouts at Runtime
-
-You can use a symbol to defer the choice of layout until a request is processed:
-
-```ruby
-class ProductsController < ApplicationController
-  layout :products_layout
-
-  def show
-    @product = Product.find(params[:id])
-  end
-
-  private
-    def products_layout
-      @current_user.special? ? "special" : "products"
-    end
-end
-```
-
-Now, if the current user is a special user, they'll get a special layout when viewing a product.
-
-You can even use an inline method, such as a Proc, to determine the layout. For example, if you pass a Proc object, the block you give the Proc will be given the `controller` instance, so the layout can be determined based on the current request:
-
-```ruby
-class ProductsController < ApplicationController
-  layout Proc.new { |controller| controller.request.xhr? ? "popup" : "application" }
-end
-```
-
-### Conditional Layouts
-
-Layouts specified at the controller level support the `:only` and `:except` options. These options take either a method name, or an array of method names, corresponding to method names within the controller:
-
-```ruby
-class ProductsController < ApplicationController
-  layout "product", except: [:index, :rss]
-end
-```
-
-With this declaration, the `product` layout would be used for everything but the `rss` and `index` methods.
-
-### Layout Inheritance
-
-Layout declarations cascade downward in the hierarchy, and more specific layout declarations always override more general ones. For example:
-
-* `application_controller.rb`
-
-    ```ruby
-    class ApplicationController < ActionController::Base
-      layout "main"
-    end
-    ```
-
-* `articles_controller.rb`
-
-    ```ruby
-    class ArticlesController < ApplicationController
-    end
-    ```
-
-* `special_articles_controller.rb`
-
-    ```ruby
-    class SpecialArticlesController < ArticlesController
-      layout "special"
-    end
-    ```
-
-* `old_articles_controller.rb`
-
-    ```ruby
-    class OldArticlesController < SpecialArticlesController
-      layout false
-
-      def show
-        @article = Article.find(params[:id])
-      end
-
-      def index
-        @old_articles = Article.older
-        render layout: "old"
-      end
-      # ...
-    end
-    ```
-
-In this application:
-
-* In general, views will be rendered in the `main` layout
-* `ArticlesController#index` will use the `main` layout
-* `SpecialArticlesController#index` will use the `special` layout
-* `OldArticlesController#show` will use no layout at all
-* `OldArticlesController#index` will use the `old` layout
-
-### Template Inheritance
-
-Similar to the Layout Inheritance logic, if a template or partial is not found in the conventional path, the controller will look for a template or partial to render in its inheritance chain. For example:
-
-```ruby
-# app/controllers/application_controller.rb
-class ApplicationController < ActionController::Base
-end
-```
-
-```ruby
-# app/controllers/admin_controller.rb
-class AdminController < ApplicationController
-end
-```
-
-```ruby
-# app/controllers/admin/products_controller.rb
-class Admin::ProductsController < AdminController
-  def index
-  end
-end
-```
-
-The lookup order for an `admin/products#index` action will be:
-
-* `app/views/admin/products/`
-* `app/views/admin/`
-* `app/views/application/`
-
-This makes `app/views/application/` a great place for your shared partials, which can then be rendered in your ERB as such:
-
-```erb
-<%# app/views/admin/products/index.html.erb %>
-<%= render @products || "empty_list" %>
-
-<%# app/views/application/_empty_list.html.erb %>
-There are no items in this list <em>yet</em>.
-```
-
 Using `redirect_to`
 ------------------
 
@@ -828,6 +663,171 @@ Set-Cookie: _blog_session=...snip...; path=/; HttpOnly
 Cache-Control: no-cache
 ```
 
+Finding Layouts
+---------------
+
+To find the current layout, Rails first looks for a file in `app/views/layouts` with the same base name as the controller. For example, rendering actions from the `PhotosController` class will use `app/views/layouts/photos.html.erb` (or `app/views/layouts/photos.builder`). If there is no such controller-specific layout, Rails will use `app/views/layouts/application.html.erb` or `app/views/layouts/application.builder`. If there is no `.erb` layout, Rails will use a `.builder` layout if one exists. Rails also provides several ways to more precisely assign specific layouts to individual controllers and actions.
+
+### Specifying Layouts for Controllers
+
+You can override the default layout conventions in your controllers by using the [`layout`][] declaration. For example:
+
+```ruby
+class ProductsController < ApplicationController
+  layout "inventory"
+  #...
+end
+```
+
+With this declaration, all of the views rendered by the `ProductsController` will use `app/views/layouts/inventory.html.erb` as their layout.
+
+To assign a specific layout for the entire application, use a `layout` declaration in your `ApplicationController` class:
+
+```ruby
+class ApplicationController < ActionController::Base
+  layout "main"
+  #...
+end
+```
+
+With this declaration, all of the views in the entire application will use `app/views/layouts/main.html.erb` for their layout.
+
+[`layout`]: https://api.rubyonrails.org/classes/ActionView/Layouts/ClassMethods.html#method-i-layout
+
+### Choosing Layouts at Runtime
+
+You can use a symbol to defer the choice of layout until a request is processed:
+
+```ruby
+class ProductsController < ApplicationController
+  layout :products_layout
+
+  def show
+    @product = Product.find(params[:id])
+  end
+
+  private
+    def products_layout
+      @current_user.special? ? "special" : "products"
+    end
+end
+```
+
+Now, if the current user is a special user, they'll get a special layout when viewing a product.
+
+You can even use an inline method, such as a Proc, to determine the layout. For example, if you pass a Proc object, the block you give the Proc will be given the `controller` instance, so the layout can be determined based on the current request:
+
+```ruby
+class ProductsController < ApplicationController
+  layout Proc.new { |controller| controller.request.xhr? ? "popup" : "application" }
+end
+```
+
+### Conditional Layouts
+
+Layouts specified at the controller level support the `:only` and `:except` options. These options take either a method name, or an array of method names, corresponding to method names within the controller:
+
+```ruby
+class ProductsController < ApplicationController
+  layout "product", except: [:index, :rss]
+end
+```
+
+With this declaration, the `product` layout would be used for everything but the `rss` and `index` methods.
+
+### Layout Inheritance
+
+Layout declarations cascade downward in the hierarchy, and more specific layout declarations always override more general ones. For example:
+
+* `application_controller.rb`
+
+    ```ruby
+    class ApplicationController < ActionController::Base
+      layout "main"
+    end
+    ```
+
+* `articles_controller.rb`
+
+    ```ruby
+    class ArticlesController < ApplicationController
+    end
+    ```
+
+* `special_articles_controller.rb`
+
+    ```ruby
+    class SpecialArticlesController < ArticlesController
+      layout "special"
+    end
+    ```
+
+* `old_articles_controller.rb`
+
+    ```ruby
+    class OldArticlesController < SpecialArticlesController
+      layout false
+
+      def show
+        @article = Article.find(params[:id])
+      end
+
+      def index
+        @old_articles = Article.older
+        render layout: "old"
+      end
+      # ...
+    end
+    ```
+
+In this application:
+
+* In general, views will be rendered in the `main` layout
+* `ArticlesController#index` will use the `main` layout
+* `SpecialArticlesController#index` will use the `special` layout
+* `OldArticlesController#show` will use no layout at all
+* `OldArticlesController#index` will use the `old` layout
+
+### Template Inheritance
+
+Similar to the Layout Inheritance logic, if a template or partial is not found in the conventional path, the controller will look for a template or partial to render in its inheritance chain. For example:
+
+```ruby
+# app/controllers/application_controller.rb
+class ApplicationController < ActionController::Base
+end
+```
+
+```ruby
+# app/controllers/admin_controller.rb
+class AdminController < ApplicationController
+end
+```
+
+```ruby
+# app/controllers/admin/products_controller.rb
+class Admin::ProductsController < AdminController
+  def index
+  end
+end
+```
+
+The lookup order for an `admin/products#index` action will be:
+
+* `app/views/admin/products/`
+* `app/views/admin/`
+* `app/views/application/`
+
+This makes `app/views/application/` a great place for your shared partials, which can then be rendered in your ERB as such:
+
+```erb
+<%# app/views/admin/products/index.html.erb %>
+<%= render @products || "empty_list" %>
+
+<%# app/views/application/_empty_list.html.erb %>
+There are no items in this list <em>yet</em>.
+```
+
 Creating and Using Layouts to Wrap Views
 ----------------------------------------
 
@@ -893,88 +893,11 @@ The result of rendering this page into the supplied layout would be this HTML:
 
 The `content_for` method is very helpful when your layout contains distinct regions such as sidebars and footers that should get their own blocks of content inserted. It's also useful for inserting tags that load page-specific JavaScript or CSS files into the header of an otherwise generic layout.
 
-### Using Partials
+### Layouts for Partials
 
 Partial templates - usually just called "partials" - are another device for breaking the rendering process into more manageable chunks. With a partial, you can move the code for rendering a particular piece of a response to its own file.
 
-#### Naming Partials
-
-To render a partial as part of a view, you use the [`render`][view.render] method within the view:
-
-```html+erb
-<%= render "menu" %>
-```
-
-This will render a file named `_menu.html.erb` at that point within the view being rendered. Note the leading underscore character: partials are named with a leading underscore to distinguish them from regular views, even though they are referred to without the underscore. This holds true even when you're pulling in a partial from another folder:
-
-```html+erb
-<%= render "application/menu" %>
-```
-
-Since view partials rely on the same [Template Inheritance](#template-inheritance)
-as templates and layouts, that code will pull in the partial from `app/views/application/_menu.html.erb`.
-
-[view.render]: https://api.rubyonrails.org/classes/ActionView/Helpers/RenderingHelper.html#method-i-render
-
-#### Using Partials to Simplify Views
-
-One way to use partials is to treat them as the equivalent of subroutines: as a way to move details out of a view so that you can grasp what's going on more easily. For example, you might have a view that looked like this:
-
-```erb
-<%= render "application/ad_banner" %>
-
-<h1>Products</h1>
-
-<p>Here are a few of our fine products:</p>
-<%# ... %>
-
-<%= render "application/footer" %>
-```
-
-Here, the `_ad_banner.html.erb` and `_footer.html.erb` partials could contain
-content that is shared by many pages in your application. You don't need to see
-the details of these sections when you're concentrating on a particular page.
-
-As seen in the previous sections of this guide, `yield` is a very powerful tool
-for cleaning up your layouts. Keep in mind that it's pure Ruby, so you can use
-it almost everywhere. For example, we can use it to DRY up form layout
-definitions for several similar resources:
-
-* `users/index.html.erb`
-
-    ```html+erb
-    <%= render "application/search_filters", search: @q do |form| %>
-      <p>
-        Name contains: <%= form.text_field :name_contains %>
-      </p>
-    <% end %>
-    ```
-
-* `roles/index.html.erb`
-
-    ```html+erb
-    <%= render "application/search_filters", search: @q do |form| %>
-      <p>
-        Title contains: <%= form.text_field :title_contains %>
-      </p>
-    <% end %>
-    ```
-
-* `application/_search_filters.html.erb`
-
-    ```html+erb
-    <%= form_with model: search do |form| %>
-      <h1>Search form:</h1>
-      <fieldset>
-        <%= yield form %>
-      </fieldset>
-      <p>
-        <%= form.submit "Search" %>
-      </p>
-    <% end %>
-    ```
-
-TIP: For content that is shared among all pages in your application, you can use partials directly from layouts.
+todo: keep stuff about "partial layouts" and "collection partial layouts" or link to Action View Overview guide
 
 #### Partial Layouts
 
@@ -987,195 +910,6 @@ A partial can use its own layout file, just as a view can use a layout. For exam
 This would look for a partial named `_link_area.html.erb` and render it using the layout `_graybar.html.erb`. Note that layouts for partials follow the same leading-underscore naming as regular partials, and are placed in the same folder with the partial that they belong to (not in the master `layouts` folder).
 
 Also note that explicitly specifying `:partial` is required when passing additional options such as `:layout`.
-
-#### Passing Local Variables
-
-You can also pass local variables into partials, making them even more powerful and flexible. For example, you can use this technique to reduce duplication between new and edit pages, while still keeping a bit of distinct content:
-
-* `new.html.erb`
-
-    ```html+erb
-    <h1>New zone</h1>
-    <%= render partial: "form", locals: {zone: @zone} %>
-    ```
-
-* `edit.html.erb`
-
-    ```html+erb
-    <h1>Editing zone</h1>
-    <%= render partial: "form", locals: {zone: @zone} %>
-    ```
-
-* `_form.html.erb`
-
-    ```html+erb
-    <%= form_with model: zone do |form| %>
-      <p>
-        <b>Zone name</b><br>
-        <%= form.text_field :name %>
-      </p>
-      <p>
-        <%= form.submit %>
-      </p>
-    <% end %>
-    ```
-
-Although the same partial will be rendered into both views, Action View's submit helper will return "Create Zone" for the new action and "Update Zone" for the edit action.
-
-To pass a local variable to a partial in only specific cases use the `local_assigns`.
-
-* `index.html.erb`
-
-    ```erb
-    <%= render user.articles %>
-    ```
-
-* `show.html.erb`
-
-    ```erb
-    <%= render article, full: true %>
-    ```
-
-* `_article.html.erb`
-
-    ```erb
-    <h2><%= article.title %></h2>
-
-    <% if local_assigns[:full] %>
-      <%= simple_format article.body %>
-    <% else %>
-      <%= truncate article.body %>
-    <% end %>
-    ```
-
-This way it is possible to use the partial without the need to declare all local variables.
-
-Every partial also has a local variable with the same name as the partial (minus the leading underscore). You can pass an object in to this local variable via the `:object` option:
-
-```erb
-<%= render partial: "customer", object: @new_customer %>
-```
-
-Within the `customer` partial, the `customer` variable will refer to `@new_customer` from the parent view.
-
-If you have an instance of a model to render into a partial, you can use a shorthand syntax:
-
-```erb
-<%= render @customer %>
-```
-
-Assuming that the `@customer` instance variable contains an instance of the `Customer` model, this will use `_customer.html.erb` to render it and will pass the local variable `customer` into the partial which will refer to the `@customer` instance variable in the parent view.
-
-#### Rendering Collections
-
-Partials are very useful in rendering collections. When you pass a collection to a partial via the `:collection` option, the partial will be inserted once for each member in the collection:
-
-* `index.html.erb`
-
-    ```html+erb
-    <h1>Products</h1>
-    <%= render partial: "product", collection: @products %>
-    ```
-
-* `_product.html.erb`
-
-    ```html+erb
-    <p>Product Name: <%= product.name %></p>
-    ```
-
-When a partial is called with a pluralized collection, then the individual instances of the partial have access to the member of the collection being rendered via a variable named after the partial. In this case, the partial is `_product`, and within the `_product` partial, you can refer to `product` to get the instance that is being rendered.
-
-There is also a shorthand for this. Assuming `@products` is a collection of `Product` instances, you can simply write this in the `index.html.erb` to produce the same result:
-
-```html+erb
-<h1>Products</h1>
-<%= render @products %>
-```
-
-Rails determines the name of the partial to use by looking at the model name in the collection. In fact, you can even create a heterogeneous collection and render it this way, and Rails will choose the proper partial for each member of the collection:
-
-* `index.html.erb`
-
-    ```html+erb
-    <h1>Contacts</h1>
-    <%= render [customer1, employee1, customer2, employee2] %>
-    ```
-
-* `customers/_customer.html.erb`
-
-    ```html+erb
-    <p>Customer: <%= customer.name %></p>
-    ```
-
-* `employees/_employee.html.erb`
-
-    ```html+erb
-    <p>Employee: <%= employee.name %></p>
-    ```
-
-In this case, Rails will use the customer or employee partials as appropriate for each member of the collection.
-
-In the event that the collection is empty, `render` will return nil, so it should be fairly simple to provide alternative content.
-
-```html+erb
-<h1>Products</h1>
-<%= render(@products) || "There are no products available." %>
-```
-
-#### Local Variables
-
-To use a custom local variable name within the partial, specify the `:as` option in the call to the partial:
-
-```erb
-<%= render partial: "product", collection: @products, as: :item %>
-```
-
-With this change, you can access an instance of the `@products` collection as the `item` local variable within the partial.
-
-You can also pass in arbitrary local variables to any partial you are rendering with the `locals: {}` option:
-
-```erb
-<%= render partial: "product", collection: @products,
-           as: :item, locals: {title: "Products Page"} %>
-```
-
-In this case, the partial will have access to a local variable `title` with the value "Products Page".
-
-#### Counter Variables
-
-Rails also makes a counter variable available within a partial called by the collection. The variable is named after the title of the partial followed by `_counter`. For example, when rendering a collection `@products` the partial `_product.html.erb` can access the variable `product_counter`. The variable indexes the number of times the partial has been rendered within the enclosing view, starting with a value of `0` on the first render.
-
-```erb
-# index.html.erb
-<%= render partial: "product", collection: @products %>
-```
-
-```erb
-# _product.html.erb
-<%= product_counter %> # 0 for the first product, 1 for the second product...
-```
-
-This also works when the local variable name is changed using the `as:` option. So if you did `as: :item`, the counter variable would be `item_counter`.
-
-#### Spacer Templates
-
-You can also specify a second partial to be rendered between instances of the main partial by using the `:spacer_template` option:
-
-```erb
-<%= render partial: @products, spacer_template: "product_ruler" %>
-```
-
-Rails will render the `_product_ruler` partial (with no data passed in to it) between each pair of `_product` partials.
-
-#### Collection Partial Layouts
-
-When rendering collections it is also possible to use the `:layout` option:
-
-```erb
-<%= render partial: "product", collection: @products, layout: "special_layout" %>
-```
-
-The layout will be rendered together with the partial for each item in the collection. The current object and object_counter variables will be available in the layout as well, the same way they are within the partial.
 
 ### Using Nested Layouts
 
