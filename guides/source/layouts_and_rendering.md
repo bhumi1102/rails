@@ -21,20 +21,8 @@ This guide focuses on the interaction between Controllers and Views in the Model
 
 The Controller to View interaction has two parts. First part involves the Controller deciding what [type of response](#creating-responses) to send and using appropriate method to create that response. If the response is a full-blown view, it's wrapped in the correct layout and view partials are pulled in as well.
 
-Creating Responses
-------------------
-
-From the controller's point of view, there are three ways to create an HTTP response:
-
-* Call [`render`][controller.render] to create a full response to send back to the browser
-* Call [`redirect_to`][] to send an HTTP redirect status code to the browser
-* Call [`head`][] to create a response consisting solely of HTTP headers to send back to the browser
-
-[controller.render]: https://api.rubyonrails.org/classes/ActionController/Rendering.html#method-i-render
-[`redirect_to`]: https://api.rubyonrails.org/classes/ActionController/Redirecting.html#method-i-redirect_to
-[`head`]: https://api.rubyonrails.org/classes/ActionController/Head.html#method-i-head
-
-### Rendering Views by Default
+Rendering Views by Default
+--------------------------
 
 Controllers in Rails automatically render views with names that match controller action names that correspond to [CRUD verbs and routes](routing.html#crud-verbs-and-actions).
 
@@ -107,13 +95,28 @@ If we want to display the properties of all the books in our view, we can do so 
 
 NOTE: The actual rendering is done by nested classes of the module [`ActionView::Template::Handlers`](https://api.rubyonrails.org/classes/ActionView/Template/Handlers.html). This guide does not dig into that process, but it's important to know that the file extension on your view controls the choice of template handler.
 
-### Using `render`
+todo: add transition - so the above is how rails renders responses implicitely. You don't even have to have a `render` statement in the Controller Action. when you need to be more elaborate with the type of responses you create as a result of the Controller action, you have 3 options below:
+
+From the controller's point of view, there are three ways to create an HTTP response:
+
+* Call [`render`][controller.render] to create a full response to send back to the browser. More in [this section](#using-render-to-create-responses)
+* Call [`redirect_to`][] to send an HTTP redirect status code to the browser. More in [this section](#using-redirect_to)
+* Call [`head`][] to create an HTTP header only response.
+
+[controller.render]: https://api.rubyonrails.org/classes/ActionController/Rendering.html#method-i-render
+[`redirect_to`]: https://api.rubyonrails.org/classes/ActionController/Redirecting.html#method-i-redirect_to
+[`head`]: https://api.rubyonrails.org/classes/ActionController/Head.html#method-i-head
+
+todo: link the difference between render and redirect_to sections.
+
+Using `render` to Create Responses
+----------------------------------
 
 In most cases, the controller's [`render`][controller.render] method does the heavy lifting of rendering your application's content for use by a browser. There are a variety of ways to customize the behavior of `render`. You can render the default view for a Rails template, or a specific template, or a file, or inline code, or nothing at all. You can render text, JSON, or XML. You can specify the content type or HTTP status of the rendered response as well.
 
 TIP: If you want to see the exact results of a call to `render` without needing to inspect it in a browser, you can call `render_to_string`. This method takes exactly the same options as `render`, but it returns a string instead of sending a response back to the browser.
 
-#### Rendering an Action's View
+### Rendering an Action's View
 
 If you want to render the view that corresponds to a different template within the same controller, you can use `render` with the name of the view:
 
@@ -143,7 +146,7 @@ def update
 end
 ```
 
-#### Rendering an Action's Template from Another Controller
+### Rendering an Action's Template from Another Controller
 
 What if you want to render a template from an entirely different controller from the one that contains the action code? You can also do that with `render`, which accepts the full path (relative to `app/views`) of the template to render. For example, if you're running code in an `AdminProductsController` that lives in `app/controllers/admin`, you can render the results of an action to a template in `app/views/products` this way:
 
@@ -157,7 +160,7 @@ Rails knows that this view belongs to a different controller because of the embe
 render template: "products/show"
 ```
 
-#### Wrapping it up
+### Wrapping it up
 
 The above two ways of rendering (rendering the template of another action in the same controller, and rendering the template of another action in a different controller) are actually variants of the same operation.
 
@@ -174,7 +177,7 @@ render template: "books/edit"
 
 Which one you use is really a matter of style and convention, but the rule of thumb is to use the simplest one that makes sense for the code you are writing.
 
-#### Using `render` with `:inline`
+### Using `render` with `:inline`
 
 The `render` method can do without a view completely, if you're willing to use the `:inline` option to supply ERB as part of the method call. This is perfectly valid:
 
@@ -190,7 +193,7 @@ By default, inline rendering uses ERB. You can force it to use Builder instead w
 render inline: "xml.p {'Horrid coding practice!'}", type: :builder
 ```
 
-#### Rendering Text
+### Rendering Text
 
 You can send plain text - with no markup at all - back to the browser by using
 the `:plain` option to `render`:
@@ -207,7 +210,7 @@ using the current layout. If you want Rails to put the text into the current
 layout, you need to add the `layout: true` option and use the `.text.erb`
 extension for the layout file.
 
-#### Rendering HTML
+### Rendering HTML
 
 You can send an HTML string back to the browser by using the `:html` option to
 `render`:
@@ -222,7 +225,7 @@ is complex.
 
 NOTE: When using `html:` option, HTML entities will be escaped if the string is not composed with `html_safe`-aware APIs.
 
-#### Rendering JSON
+### Rendering JSON
 
 JSON is a JavaScript data format used by many Ajax libraries. Rails has built-in support for converting objects to JSON and rendering that JSON back to the browser:
 
@@ -232,7 +235,7 @@ render json: @product
 
 TIP: You don't need to call `to_json` on the object that you want to render. If you use the `:json` option, `render` will automatically call `to_json` for you.
 
-#### Rendering XML
+### Rendering XML
 
 Rails also has built-in support for converting objects to XML and rendering that XML back to the caller:
 
@@ -242,7 +245,7 @@ render xml: @product
 
 TIP: You don't need to call `to_xml` on the object that you want to render. If you use the `:xml` option, `render` will automatically call `to_xml` for you.
 
-#### Rendering Vanilla JavaScript
+### Rendering Vanilla JavaScript
 
 Rails can render vanilla JavaScript:
 
@@ -252,7 +255,7 @@ render js: "alert('Hello Rails');"
 
 This will send the supplied string to the browser with a MIME type of `text/javascript`.
 
-#### Rendering Raw Body
+### Rendering Raw Body
 
 You can send a raw content back to the browser, without setting any content
 type, by using the `:body` option to `render`:
@@ -268,7 +271,7 @@ time.
 NOTE: Unless overridden, your response returned from this render option will be
 `text/plain`, as that is the default content type of Action Dispatch response.
 
-#### Rendering Raw File
+### Rendering Raw File
 
 Rails can render a raw file from an absolute path. This is useful for
 conditionally rendering static files like error pages.
@@ -285,7 +288,7 @@ since an attacker could use this action to access security sensitive files in yo
 
 TIP: `send_file` is often a faster and better option if a layout isn't required.
 
-#### Rendering Objects
+### Rendering Objects
 
 Rails can render objects responding to `#render_in`. The format can be controlled by defining `#format` on the object.
 
@@ -311,7 +314,7 @@ render renderable: Greeting.new
 # => "Hello World"
 ```
 
-#### Options for `render`
+### Options for `render`
 
 Calls to the [`render`][controller.render] method generally accept six options:
 
@@ -322,7 +325,7 @@ Calls to the [`render`][controller.render] method generally accept six options:
 * `:formats`
 * `:variants`
 
-##### The `:content_type` Option
+#### The `:content_type` Option
 
 By default, Rails will serve the results of a rendering operation with the MIME content-type of `text/html` (or `application/json` if you use the `:json` option, or `application/xml` for the `:xml` option.). There are times when you might like to change this, and you can do so by setting the `:content_type` option:
 
@@ -330,7 +333,7 @@ By default, Rails will serve the results of a rendering operation with the MIME 
 render template: "feed", content_type: "application/rss"
 ```
 
-##### The `:layout` Option
+#### The `:layout` Option
 
 With most of the options to `render`, the rendered content is displayed as part of the current layout. You'll learn more about layouts and how to use them later in this guide.
 
@@ -346,7 +349,7 @@ You can also tell Rails to render with no layout at all:
 render layout: false
 ```
 
-##### The `:location` Option
+#### The `:location` Option
 
 You can use the `:location` option to set the HTTP `Location` header:
 
@@ -354,7 +357,7 @@ You can use the `:location` option to set the HTTP `Location` header:
 render xml: photo, location: photo_url(photo)
 ```
 
-##### The `:status` Option
+#### The `:status` Option
 
 Rails will automatically generate a response with the correct HTTP status code (in most cases, this is `200 OK`). You can use the `:status` option to change this:
 
@@ -430,7 +433,7 @@ Rails understands both numeric status codes and the corresponding symbols shown 
 NOTE:  If you try to render content along with a non-content status code
 (100-199, 204, 205, or 304), it will be dropped from the response.
 
-##### The `:formats` Option
+#### The `:formats` Option
 
 Rails uses the format specified in the request (or `:html` by default). You can
 change this passing the `:formats` option with a symbol or an array:
@@ -442,7 +445,7 @@ render formats: [:json, :xml]
 
 If a template with the specified format does not exist an `ActionView::MissingTemplate` error is raised.
 
-##### The `:variants` Option
+#### The `:variants` Option
 
 This tells Rails to look for template variations of the same format.
 You can specify a list of variants by passing the `:variants` option with a symbol or an array.
@@ -479,11 +482,12 @@ private
   end
 ```
 
-#### Finding Layouts
+Finding Layouts
+---------------
 
 To find the current layout, Rails first looks for a file in `app/views/layouts` with the same base name as the controller. For example, rendering actions from the `PhotosController` class will use `app/views/layouts/photos.html.erb` (or `app/views/layouts/photos.builder`). If there is no such controller-specific layout, Rails will use `app/views/layouts/application.html.erb` or `app/views/layouts/application.builder`. If there is no `.erb` layout, Rails will use a `.builder` layout if one exists. Rails also provides several ways to more precisely assign specific layouts to individual controllers and actions.
 
-##### Specifying Layouts for Controllers
+### Specifying Layouts for Controllers
 
 You can override the default layout conventions in your controllers by using the [`layout`][] declaration. For example:
 
@@ -509,7 +513,7 @@ With this declaration, all of the views in the entire application will use `app/
 
 [`layout`]: https://api.rubyonrails.org/classes/ActionView/Layouts/ClassMethods.html#method-i-layout
 
-##### Choosing Layouts at Runtime
+### Choosing Layouts at Runtime
 
 You can use a symbol to defer the choice of layout until a request is processed:
 
@@ -538,7 +542,7 @@ class ProductsController < ApplicationController
 end
 ```
 
-##### Conditional Layouts
+### Conditional Layouts
 
 Layouts specified at the controller level support the `:only` and `:except` options. These options take either a method name, or an array of method names, corresponding to method names within the controller:
 
@@ -550,7 +554,7 @@ end
 
 With this declaration, the `product` layout would be used for everything but the `rss` and `index` methods.
 
-##### Layout Inheritance
+### Layout Inheritance
 
 Layout declarations cascade downward in the hierarchy, and more specific layout declarations always override more general ones. For example:
 
@@ -603,7 +607,7 @@ In this application:
 * `OldArticlesController#show` will use no layout at all
 * `OldArticlesController#index` will use the `old` layout
 
-##### Template Inheritance
+### Template Inheritance
 
 Similar to the Layout Inheritance logic, if a template or partial is not found in the conventional path, the controller will look for a template or partial to render in its inheritance chain. For example:
 
@@ -643,49 +647,8 @@ This makes `app/views/application/` a great place for your shared partials, whic
 There are no items in this list <em>yet</em>.
 ```
 
-#### Avoiding Double Render Errors
-
-Sooner or later, most Rails developers will see the error message "Can only render or redirect once per action". While this is annoying, it's relatively easy to fix. Usually it happens because of a fundamental misunderstanding of the way that `render` works.
-
-For example, here's some code that will trigger this error:
-
-```ruby
-def show
-  @book = Book.find(params[:id])
-  if @book.special?
-    render action: "special_show"
-  end
-  render action: "regular_show"
-end
-```
-
-If `@book.special?` evaluates to `true`, Rails will start the rendering process to dump the `@book` variable into the `special_show` view. But this will _not_ stop the rest of the code in the `show` action from running, and when Rails hits the end of the action, it will start to render the `regular_show` view - and throw an error. The solution is simple: make sure that you have only one call to `render` or `redirect` in a single code path. One thing that can help is `return`. Here's a patched version of the method:
-
-```ruby
-def show
-  @book = Book.find(params[:id])
-  if @book.special?
-    render action: "special_show"
-    return
-  end
-  render action: "regular_show"
-end
-```
-
-Note that the implicit render done by ActionController detects if `render` has been called, so the following will work without errors:
-
-```ruby
-def show
-  @book = Book.find(params[:id])
-  if @book.special?
-    render action: "special_show"
-  end
-end
-```
-
-This will render a book with `special?` set with the `special_show` template, while other books will render with the default `show` template.
-
-### Using `redirect_to`
+Using `redirect_to`
+------------------
 
 Another way to handle returning responses to an HTTP request is with [`redirect_to`][]. As you've seen, `render` tells Rails which view (or other asset) to use in constructing a response. The `redirect_to` method does something completely different: it tells the browser to send a new request for a different URL. For example, you could redirect from wherever you are in your code to the index of photos in your application with this call:
 
@@ -706,7 +669,7 @@ NOTE: `redirect_to` and `redirect_back` do not halt and return immediately from 
 
 [`redirect_back`]: https://api.rubyonrails.org/classes/ActionController/Redirecting.html#method-i-redirect_back
 
-#### Getting a Different Redirect Status Code
+### Getting a Different Redirect Status Code
 
 Rails uses HTTP status code 302, a temporary redirect, when you call `redirect_to`. If you'd like to use a different status code, perhaps 301, a permanent redirect, you can use the `:status` option:
 
@@ -716,7 +679,8 @@ redirect_to photos_path, status: 301
 
 Just like the `:status` option for `render`, `:status` for `redirect_to` accepts both numeric and symbolic header designations.
 
-#### The Difference Between `render` and `redirect_to`
+The Difference Between `render` and `redirect_to`
+------------------------------------------------
 
 Sometimes inexperienced developers think of `redirect_to` as a sort of `goto`
 command, moving execution from one place to another in your Rails code. This is
@@ -780,7 +744,50 @@ end
 
 This would detect that there are no books with the specified ID, populate the `@books` instance variable with all the books in the model, and then directly render the `index.html.erb` template, returning it to the browser with a flash alert message to tell the user what happened.
 
-### Using `head` to Build Header-Only Responses
+### Avoiding Double Render Errors
+
+Sooner or later, most Rails developers will see the error message "Can only render or redirect once per action". While this is annoying, it's relatively easy to fix. Usually it happens because of a fundamental misunderstanding of the way that `render` works.
+
+For example, here's some code that will trigger this error:
+
+```ruby
+def show
+  @book = Book.find(params[:id])
+  if @book.special?
+    render action: "special_show"
+  end
+  render action: "regular_show"
+end
+```
+
+If `@book.special?` evaluates to `true`, Rails will start the rendering process to dump the `@book` variable into the `special_show` view. But this will _not_ stop the rest of the code in the `show` action from running, and when Rails hits the end of the action, it will start to render the `regular_show` view - and throw an error. The solution is simple: make sure that you have only one call to `render` or `redirect` in a single code path. One thing that can help is `return`. Here's a patched version of the method:
+
+```ruby
+def show
+  @book = Book.find(params[:id])
+  if @book.special?
+    render action: "special_show"
+    return
+  end
+  render action: "regular_show"
+end
+```
+
+Note that the implicit render done by ActionController detects if `render` has been called, so the following will work without errors:
+
+```ruby
+def show
+  @book = Book.find(params[:id])
+  if @book.special?
+    render action: "special_show"
+  end
+end
+```
+
+This will render a book with `special?` set with the `special_show` template, while other books will render with the default `show` template.
+
+Using `head` to Build Header-Only Responses
+-------------------------------------------
 
 The [`head`][] method can be used to send responses with only headers to the browser. The `head` method accepts a number or symbol (see [reference table](#the-status-option)) representing an HTTP status code. The options argument is interpreted as a hash of header names and values. For example, you can return only an error header:
 
