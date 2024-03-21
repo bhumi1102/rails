@@ -99,8 +99,8 @@ todo: add transition - so the above is how rails renders responses implicitely. 
 
 From the controller's point of view, there are three ways to create an HTTP response:
 
-* Call [`render`][controller.render] to create a full response to send back to the browser. More in [this section](#using-render-to-create-responses)
-* Call [`redirect_to`][] to send an HTTP redirect status code to the browser. More in [this section](#using-redirect-to)
+* Call [`render`][controller.render] to create a full response to send back to the browser. More in [this section](#creating-responses-using-render)
+* Call [`redirect_to`][] to send an HTTP redirect status code to the browser. More in [this section](#creating-responses-using-redirect-to)
 * Call [`head`][] to create an HTTP header only response.
 
 [controller.render]: https://api.rubyonrails.org/classes/ActionController/Rendering.html#method-i-render
@@ -109,8 +109,8 @@ From the controller's point of view, there are three ways to create an HTTP resp
 
 todo: link the difference between render and redirect_to sections.
 
-Using `render` to Create Responses
-----------------------------------
+Creating Responses Using `render`
+---------------------------------
 
 In most cases, the controller's [`render`][controller.render] method does the heavy lifting of rendering your application's content for use by a browser. There are a variety of ways to customize the behavior of `render`. You can render the default view for a Rails template, or a specific template, or a file, or inline code, or nothing at all. You can render text, JSON, or XML. You can specify the content type or HTTP status of the rendered response as well.
 
@@ -482,8 +482,8 @@ private
   end
 ```
 
-Using `redirect_to`
-------------------
+Creating Responses using `redirect_to`
+-------------------------------------
 
 Another way to handle returning responses to an HTTP request is with [`redirect_to`][]. As you've seen, `render` tells Rails which view (or other asset) to use in constructing a response. The `redirect_to` method does something completely different: it tells the browser to send a new request for a different URL. For example, you could redirect from wherever you are in your code to the index of photos in your application with this call:
 
@@ -621,8 +621,8 @@ end
 
 This will render a book with `special?` set with the `special_show` template, while other books will render with the default `show` template.
 
-Using `head` to Build Header-Only Responses
--------------------------------------------
+Building Header-Only Responses Using `head`
+------------------------------------------
 
 The [`head`][] method can be used to send responses with only headers to the browser. The `head` method accepts a number or symbol (see [reference table](#the-status-option)) representing an HTTP status code. The options argument is interpreted as a hash of header names and values. For example, you can return only an error header:
 
@@ -828,8 +828,8 @@ This makes `app/views/application/` a great place for your shared partials, whic
 There are no items in this list <em>yet</em>.
 ```
 
-Creating and Using Layouts to Wrap Views
-----------------------------------------
+Using Layouts to Wrap Views
+---------------------------
 
 When Rails renders a view as a response, it does so by combining the view with the current layout, using the rules for finding the current layout that were covered earlier in this guide. Within a layout, you have access to `yield` and [`content_for`][] for combining different bits of output to form the overall response.
 
