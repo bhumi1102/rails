@@ -106,7 +106,7 @@ And now that we have a `Book` model and `@books` instance variable available we 
 <%= link_to "New book", new_book_path %>
 ```
 
-NOTE: The actual rendering is done by nested classes of the module [`ActionView::Template::Handlers`](https://api.rubyonrails.org/classes/ActionView/Template/Handlers.html). This guide does not dig into that process, but it's important to know that the file extension on your view controls the choice of template handler.
+NOTE: The actual rendering is done by nested classes of the module [`ActionView::Template::Handlers`](https://api.rubyonrails.org/classes/ActionView/Template/Handlers.html). This guide does not dig into that process, but it's important to know that the file extension, such as `html.erb`, on your view controls the choice of template handler.
 
 todo: add transition - so the above is how rails renders responses implicitely. You don't even have to have a `render` statement in the Controller Action. when you need to be more elaborate with the type of responses you create as a result of the Controller action, you have 3 options below:
 
@@ -125,7 +125,9 @@ todo: link the difference between render and redirect_to sections.
 Creating Responses Using `render`
 ---------------------------------
 
-In most cases, the controller's [`render`][controller.render] method does the heavy lifting of rendering your application's content for use by a browser. There are a variety of ways to customize the behavior of `render`. You can render the default view for a Rails template, or a specific template, or a file, or inline code, or nothing at all. You can render text, JSON, or XML. You can specify the content type or HTTP status of the rendered response as well.
+The controller's [`render`][controller.render] method does the heavy lifting of constructing a response to HTTP requests and sending your application's content to the client. This section describes the various way in which you can customize the behavior of `render`. 
+
+You can render the default view for a controller action, or a specific view template, or a file, or inline code, or nothing at all. You can render text, JSON, or XML. You can specify the content type or HTTP status of the rendered response as well.
 
 TIP: If you want to see the exact results of a call to `render` without needing to inspect it in a browser, you can call `render_to_string`. This method takes exactly the same options as `render`, but it returns a string instead of sending a response back to the browser.
 
@@ -173,9 +175,7 @@ Rails knows that this view belongs to a different controller because of the embe
 render template: "products/show"
 ```
 
-### Wrapping it up
-
-The above two ways of rendering (rendering the template of another action in the same controller, and rendering the template of another action in a different controller) are actually variants of the same operation.
+The above two ways of rendering (rendering the template of another action in the same controller, and rendering the template of an action in a different controller) are actually variants of the same operation.
 
 In fact, in the `BooksController` class, inside of the update action where we want to render the edit template if the book does not update successfully, all of the following render calls would all render the `edit.html.erb` template in the `views/books` directory:
 
