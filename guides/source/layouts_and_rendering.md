@@ -3,14 +3,14 @@
 Layouts and Rendering in Rails
 ==============================
 
-This guide covers layout features of Action Controller and Action View.
+This guide covers rendering and layout features of Action Controller and Action View.
 
 After reading this guide, you will know:
 
-* How to use the various rendering methods built into Rails.
+* How the Controller interacts with the View to create a response.
+* How to use rendering methods such as `render` and `redirect_to`.
 * How to create layouts with multiple content sections.
-* How to use partials to DRY up your views.
-* How to use nested layouts (sub-templates).
+* How Rails uses conventions to decide which layout to use.
 
 --------------------------------------------------------------------------------
 
@@ -19,7 +19,7 @@ Overview: How the Pieces Fit Together
 
 This guide focuses on the interaction between Controllers and Views in the Model-View-Controller (MVC) pattern. A Rails Controller is responsible for orchestrating the process of handling an HTTP request and composing a response. The Controller first hands off data access logic to the Model. Then, when it's time to send a response back to the browser, the Controller hands things off to the View. This guide will focus on the handoff between the Controller and the View.
 
-In broad strokes, this involves deciding what should be sent as the response and calling an appropriate method to create that response. If the response is a full-blown view, Rails also does some extra work to wrap the view in a layout and possibly to pull in partial views.
+The Controller to View interaction has two parts. First part involves the Controller deciding what [type of response](#creating-responses) to send and using appropriate method to create that response. If the response is a full-blown view, it's wrapped in the correct layout and view partials are pulled in as well.
 
 Creating Responses
 ------------------
@@ -821,8 +821,8 @@ Set-Cookie: _blog_session=...snip...; path=/; HttpOnly
 Cache-Control: no-cache
 ```
 
-Structuring Layouts
--------------------
+Creating and Using Layouts to Wrap Views
+----------------------------------------
 
 When Rails renders a view as a response, it does so by combining the view with the current layout, using the rules for finding the current layout that were covered earlier in this guide. Within a layout, you have access to three tools for combining different bits of output to form the overall response:
 
