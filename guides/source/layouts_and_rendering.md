@@ -197,19 +197,21 @@ Which one you use is really a matter of style and convention, but the rule of th
 
 ### Using `render` with `:inline`
 
-The `render` method can do without a view completely, if you're willing to use the `:inline` option to supply ERB as part of the method call. This is perfectly valid:
+It is possible to use the `render` method without a view at all. There is an `:inline` option that takes an ERB string as part of the method call. For example, this is valid:
 
 ```ruby
 render inline: "<% products.each do |p| %><p><%= p.name %></p><% end %>"
 ```
 
-WARNING: There is seldom any good reason to use this option. Mixing ERB into your controllers defeats the MVC orientation of Rails and will make it harder for other developers to follow the logic of your project. Use a separate erb view instead.
+Rails applications do not typically render ERB inline in strings like this. You might do this for a quick demonstration like `render inline: "<h1>Hello World</h1>"`.
 
 By default, inline rendering uses ERB. You can force it to use Builder instead with the `:type` option:
 
 ```ruby
 render inline: "xml.p {'Horrid coding practice!'}", type: :builder
 ```
+
+WARNING: There is rarely a good reason to use this option in production code. Mixing ERB into your controllers mixes controllers and views in MVC. It will make it harder for other developers to follow the logic of your project. Use a separate ERB file instead.
 
 ### Rendering Text
 
@@ -301,8 +303,9 @@ render file: "#{Rails.root}/public/404.html", layout: false
 This renders the raw file (it doesn't support ERB or other handlers). By
 default it is rendered within the current layout.
 
-WARNING: Using the `:file` option in combination with users input can lead to security problems
-since an attacker could use this action to access security sensitive files in your file system.
+WARNING: Using the `:file` option in combination with user input can lead to
+security problems since an attacker could use this action to access security
+sensitive files in your file system.
 
 TIP: `send_file` is often a faster and better option if a layout isn't required.
 
