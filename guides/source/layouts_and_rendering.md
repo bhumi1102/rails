@@ -307,7 +307,9 @@ WARNING: Using the `:file` option in combination with user input can lead to
 security problems since an attacker could use this action to access security
 sensitive files in your file system.
 
-TIP: `send_file` is often a faster and better option if a layout isn't required.
+TIP: [`send_file`][] is often a faster and better option if a layout isn't required.
+
+[`send_file`]: https://api.rubyonrails.org/v7.0.4.2/classes/ActionController/DataStreaming.html#method-i-send_file
 
 ### Rendering Objects
 
