@@ -478,15 +478,15 @@ format. You can specify a list of variants by passing the `:variants` option
 with a symbol or an array. For example:
 
 ```ruby
-# called in HomeController#index
+# called in BookController#index
 render variants: [:mobile, :desktop]
 ```
 
 For the above variants Rails will look for the following set of templates and use the first that exists.
 
-- `app/views/home/index.html+mobile.erb`
-- `app/views/home/index.html+desktop.erb`
-- `app/views/home/index.html.erb`
+- `app/views/book/index.html+mobile.erb`
+- `app/views/book/index.html+desktop.erb`
+- `app/views/book/index.html.erb`
 
 If a template with the specified format does not exist an `ActionView::MissingTemplate` error is raised.
 
@@ -510,15 +510,15 @@ private
 Creating Responses using `redirect_to`
 -------------------------------------
 
-Another way to handle returning responses to an HTTP request is with [`redirect_to`][]. As you've seen, `render` tells Rails which view (or other asset) to use in constructing a response. The `redirect_to` method does something completely different: it tells the browser to send a new request for a different URL. For example, you could redirect from wherever you are in your code to the index of photos in your application with this call:
+Another way to handle returning responses to an HTTP request is with [`redirect_to`][]. The `render` method tells Rails which view (or other asset) to use in constructing a response. The `redirect_to` method does something completely different: it tells the browser to send a new request for a different URL. For example, you could redirect from wherever you are in a controller action to the photo's index URL `/photos` with this call:
 
 ```ruby
 redirect_to photos_url
 ```
 
-You can use [`redirect_back`][] to return the user to the page they just came from.
-This location is pulled from the `HTTP_REFERER` header which is not guaranteed
-to be set by the browser, so you must provide the `fallback_location`
+You can use [`redirect_back`][] to return the user to the page they just came
+from. This location is pulled from the `HTTP_REFERER` header which is not
+guaranteed to be set by the browser, so you must provide the `fallback_location`
 to use in this case.
 
 ```ruby
