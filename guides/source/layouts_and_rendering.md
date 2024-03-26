@@ -19,7 +19,7 @@ Overview: How the Pieces Fit Together
 
 This guide focuses on the interaction between Controllers and Views in the Model-View-Controller (MVC) pattern. A Rails Controller is responsible for orchestrating the process of handling an HTTP request and composing a response. The Controller first hands off data access logic to the Model. Then, when it's time to send a response back to the client, the Controller hands things off to the View. This guide will focus on the handoff between the Controller and the View.
 
-The Controller to View interaction has two parts. First part involves the Controller deciding what type of response to send and using an appropriate method to create that response. If the response is a full-blown view, Rails wrapped it in the correct layout and pulls in view partials as needed.
+The Controller to View interaction has two parts. The first part involves the Controller deciding what type of response to send and using an appropriate method to create that response. The second part is about finding the correct layout and wrapping the response in that layout, if the response is a full-blown view.
 
 Rendering Views by Convention
 -----------------------------
@@ -47,12 +47,12 @@ And you have a view file `index.html.erb` at the default location `app/views/boo
 <h1>Books are coming soon!</h1>
 ```
 
-When you navigate to `/books`, Rails will automatically find and render `app/views/books/index.html.erb`. And you will see "Books are coming soon!" on your screen. This is because Rails is using naming conventions for routes, controller actions, and view files as well as the view file location to find and render the `index` view in response to navigating to `/books`. 
+When you navigate to `/books`, Rails will automatically find and render `app/views/books/index.html.erb`. And you will see "Books are coming soon!" on your screen. This is because Rails is using naming conventions for routes, controller actions, and view files as well as the view file location to find and render the `index` view in response to navigating to `/books`.
 
 This is not magic. It is "convention over configuration" in action. You can imagine that the following code implicitly exists in `BooksController` class:
 
 ```ruby
-# We do not explicitly need to write this boilerplate code.
+# We do not explicitly need to write the boilerplate index action.
 class BooksController < ApplicationController
   def index
     render :index
@@ -60,7 +60,7 @@ class BooksController < ApplicationController
 end
 ```
 
-Once you need to do anything other than `render :index` from the `index` action, you'd define the `index` method. If you create a `Book` model and add the following index action to `BooksController`:
+But we do not need write the above boilerplate `index` action. You'd define the `index` method once you need to do anything other than `render :index`. If you create a `Book` model and add the following index action to `BooksController`:
 
 ```ruby
 class BooksController < ApplicationController
@@ -72,9 +72,9 @@ end
 
 This will find and render the same `index.html.erb` file. Note that we still do not need to have an explicit `render` statement at the end of the `index` action.
 
-The rule is that if you do not explicitly render something at the end of a controller action, Rails will automatically look for the `action_name.html.erb` view in the controller's view path and render it. So in this case, Rails will render the `app/views/books/index.html.erb` file.
+If you do not explicitly render something at the end of a controller action, Rails will automatically look for the `action_name.html.erb` view in the controller's view path and render it. So in this case, Rails will render the `app/views/books/index.html.erb` file.
 
-And now that we have a `Book` model and `@books` instance variable available we would modify the `index` view to display more details about all the books. Something like this:
+Now that we have a `Book` model and `@books` instance variable available we would modify the `index` view to display more details about all the books. Something like this:
 
 ```html+erb
 <h1>Listing Books</h1>
@@ -112,20 +112,20 @@ So far, we have described how controller actions render responses implicitly. No
 
 From the controller's point of view, there are three ways to create an HTTP response:
 
-* Call [`render`][controller.render] to create a full response to send back to the browser. More in [this section](#creating-responses-using-render)
-* Call [`redirect_to`][] to send an HTTP redirect status code to the browser. More in [this section](#creating-responses-using-redirect-to)
-* Call [`head`][] to create an HTTP header only response.
+* Call [`render`][controller.render] to create a full response to send back to the browser. More examples in [Creating Responses Using `render` section](#creating-responses-using-render).
+* Call [`redirect_to`][] to send an HTTP redirect status code to the browser. More examples in [Creating Responses Using `redirect-to` section](#creating-responses-using-redirect-to)
+* Call [`head`][] to create an HTTP header only response. More in [this section](#building-header-only-responses-using-head).
 
 [controller.render]: https://api.rubyonrails.org/classes/ActionController/Rendering.html#method-i-render
 [`redirect_to`]: https://api.rubyonrails.org/classes/ActionController/Redirecting.html#method-i-redirect_to
 [`head`]: https://api.rubyonrails.org/classes/ActionController/Head.html#method-i-head
 
-todo: add links. The following sections cover creating responses with each of the three options. As well as the difference between render and redirect. 
+The following sections cover creating responses with each of the three options. As well as the difference between render and redirect.
 
 Creating Responses Using `render`
 ---------------------------------
 
-This section describes the various way in which you can customize the behavior of `render`. The controller's [`render`][controller.render] method does the heavy lifting of constructing a response to HTTP requests and sending your application's content to the client.  
+This section describes the various way in which you can customize the behavior of `render`. The controller's [`render`][controller.render] method does the heavy lifting of constructing a response to HTTP requests and sending your application's content to the client.
 
 You can render the default view for a controller action, or a specific view template, or a file, or inline code, or nothing at all. You can render text, JSON, or XML. You can specify the content type or HTTP status of the rendered response as well.
 
@@ -146,7 +146,7 @@ def update
 end
 ```
 
-If the call to `update` fails, calling the `update` action in this controller will render the `edit.html.erb` template belonging to the same controller.
+Calling the `update` action in this controller will render the `edit.html.erb` template, in the `else` clause if the call to `@book.update` fails. The `edit.html.erb` file is assumed to belong to the same controller.
 
 If you prefer, you can use a symbol instead of a string to specify the action to render:
 
@@ -163,16 +163,21 @@ end
 
 ### Rendering an Action's Template from Another Controller
 
-What if you want to render a template from an entirely different controller from the one that contains the action code? You can also do that with `render`, which accepts the full path (relative to `app/views`) of the template to render. For example, if you're running code in an `AdminProductsController` that lives in `app/controllers/admin`, you can render the results of an action to a template in `app/views/products` this way:
+What if you want to render a template from an entirely different controller from the one that contains the action code?
+
+You can also do that with `render`. It accepts a path, relative to `app/views`, of the template you want to render. For example, if you have `some_action` in a `DifferentController` that lives in `app/controllers/`, you can render `show.html.erb` template in `app/views/books` this way:
 
 ```ruby
-render "products/show"
+# In `app/controllers/different_controller.rb`
+def some_action
+  render "books/show"
+end
 ```
 
-Rails knows that this view belongs to a different controller because of the embedded slash character in the string. If you want to be explicit, you can use the `:template` option (which was required on Rails 2.2 and earlier):
+Rails knows that this view belongs to a different controller because of the embedded slash character in the string. If you want to be explicit, you can use the `:template` option:
 
 ```ruby
-render template: "products/show"
+render template: "books/show"
 ```
 
 The above two ways of rendering (rendering the template of another action in the same controller, and rendering the template of an action in a different controller) are actually variants of the same operation.
