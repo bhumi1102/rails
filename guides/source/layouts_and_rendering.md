@@ -17,9 +17,9 @@ After reading this guide, you will know:
 Overview: How the Pieces Fit Together
 -------------------------------------
 
-This guide focuses on the interaction between Controllers and Views in the Model-View-Controller (MVC) pattern. A Rails Controller is responsible for orchestrating the process of handling an HTTP request and composing a response. The Controller first hands off data access logic to the Model. Then, when it's time to send a response back to the client, the Controller hands things off to the View. This guide will focus on the handoff between the Controller and the View.
+This guide focuses on the interaction between Controllers and Views in the Model-View-Controller (MVC) pattern. In Rails, [Action Controller](action_controller_overview.html) is responsible for orchestrating the process of handling an HTTP request and composing a response. The Controller layer first hands off data access logic to the Model layer. Then, when it's time to send a response back to the client, the Controller layer hands things off to the View layer. This guide focuses on the handoff between the Controller and the View layers.
 
-The Controller to View interaction has two parts. The first part involves the Controller deciding what type of response to send and using an appropriate method to create that response. The second part is about finding the correct layout and wrapping the response in that layout, if the response is a full-blown view.
+The Controller to View interaction has two parts. The first part involves the Controller deciding what type of response to send and using an appropriate method to create that response. The second part is about finding the correct layout and wrapping the response in that layout, when the response is a full-blown view.
 
 Rendering Views by Convention
 -----------------------------
@@ -685,6 +685,8 @@ X-Runtime: 0.083496
 Set-Cookie: _blog_session=...snip...; path=/; HttpOnly
 Cache-Control: no-cache
 ```
+
+todo: add transition between 'rendering stuff' to now 'layout stuff'
 
 Finding Layouts
 ---------------
