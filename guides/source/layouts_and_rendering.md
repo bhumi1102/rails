@@ -17,14 +17,14 @@ After reading this guide, you will know:
 Overview: How the Pieces Fit Together
 -------------------------------------
 
-This guide focuses on the interaction between Controllers and Views in the Model-View-Controller (MVC) pattern. A Rails Controller is responsible for orchestrating the process of handling an HTTP request and composing a response. The Controller first hands off data access logic to the Model. Then, when it's time to send a response back to the browser, the Controller hands things off to the View. This guide will focus on the handoff between the Controller and the View.
+This guide focuses on the interaction between Controllers and Views in the Model-View-Controller (MVC) pattern. A Rails Controller is responsible for orchestrating the process of handling an HTTP request and composing a response. The Controller first hands off data access logic to the Model. Then, when it's time to send a response back to the client, the Controller hands things off to the View. This guide will focus on the handoff between the Controller and the View.
 
-The Controller to View interaction has two parts. First part involves the Controller deciding what type of response to send and using appropriate method to create that response. If the response is a full-blown view, it's wrapped in the correct layout and view partials are pulled in as well.
+The Controller to View interaction has two parts. First part involves the Controller deciding what type of response to send and using an appropriate method to create that response. If the response is a full-blown view, Rails wrapped it in the correct layout and pulls in view partials as needed.
 
 Rendering Views by Convention
 -----------------------------
 
-By default, Controllers in Rails automatically render views with names that match controller action names and correspond to [CRUD verbs and routes](routing.html#crud-verbs-and-actions).
+By default, controllers in Rails automatically render views with names that match controller action names and correspond to [CRUD verbs and routes](routing.html#crud-verbs-and-actions).
 
 NOTE: Default rendering of views that match controller action names is an excellent example of the ["convention over configuration"](https://rubyonrails.org/doctrine#convention-over-configuration) technique that Rails promotes.
 
@@ -47,7 +47,7 @@ And you have a view file `index.html.erb` at the default location `app/views/boo
 <h1>Books are coming soon!</h1>
 ```
 
-When you navigate to `/books`, Rails will automatically render `app/views/books/index.html.erb`. And you will see "Books are coming soon!" on your screen. This is because Rails is using naming conventions for routes, controller actions, and view files as well as the view file location to find and render the `index` view in response to navigating to `/books`. 
+When you navigate to `/books`, Rails will automatically find and render `app/views/books/index.html.erb`. And you will see "Books are coming soon!" on your screen. This is because Rails is using naming conventions for routes, controller actions, and view files as well as the view file location to find and render the `index` view in response to navigating to `/books`. 
 
 This is not magic. It is "convention over configuration" in action. You can imagine that the following code implicitly exists in `BooksController` class:
 
@@ -74,7 +74,7 @@ This will find and render the same `index.html.erb` file. Note that we still do 
 
 The rule is that if you do not explicitly render something at the end of a controller action, Rails will automatically look for the `action_name.html.erb` view in the controller's view path and render it. So in this case, Rails will render the `app/views/books/index.html.erb` file.
 
-And now that we have a `Book` model and `@books` instance variable available we would modify the `index` view to display the properties of all the books something like this:
+And now that we have a `Book` model and `@books` instance variable available we would modify the `index` view to display more details about all the books. Something like this:
 
 ```html+erb
 <h1>Listing Books</h1>
@@ -106,9 +106,9 @@ And now that we have a `Book` model and `@books` instance variable available we 
 <%= link_to "New book", new_book_path %>
 ```
 
-NOTE: The actual rendering is done by nested classes of the module [`ActionView::Template::Handlers`](https://api.rubyonrails.org/classes/ActionView/Template/Handlers.html). This guide does not dig into that process, but it's important to know that the file extension, such as `html.erb`, on your view controls the choice of template handler.
+NOTE: The actual rendering is done by nested classes of the module [`ActionView::Template::Handlers`](https://api.rubyonrails.org/classes/ActionView/Template/Handlers.html). This guide does not dig into that process, but it's important to know that the file extension, such as `html.erb`, controls the choice of template handler.
 
-todo: add transition - so the above is how rails renders responses implicitely. You don't even have to have a `render` statement in the Controller Action. when you need to be more elaborate with the type of responses you create as a result of the Controller action, you have 3 options below:
+So far, we have described how controller actions render responses implicitly. Now, let's see how to explicitly create more elaborate responses from controller actions.
 
 From the controller's point of view, there are three ways to create an HTTP response:
 
@@ -120,12 +120,12 @@ From the controller's point of view, there are three ways to create an HTTP resp
 [`redirect_to`]: https://api.rubyonrails.org/classes/ActionController/Redirecting.html#method-i-redirect_to
 [`head`]: https://api.rubyonrails.org/classes/ActionController/Head.html#method-i-head
 
-todo: link the difference between render and redirect_to sections.
+todo: add links. The following sections cover creating responses with each of the three options. As well as the difference between render and redirect. 
 
 Creating Responses Using `render`
 ---------------------------------
 
-The controller's [`render`][controller.render] method does the heavy lifting of constructing a response to HTTP requests and sending your application's content to the client. This section describes the various way in which you can customize the behavior of `render`. 
+This section describes the various way in which you can customize the behavior of `render`. The controller's [`render`][controller.render] method does the heavy lifting of constructing a response to HTTP requests and sending your application's content to the client.  
 
 You can render the default view for a controller action, or a specific view template, or a file, or inline code, or nothing at all. You can render text, JSON, or XML. You can specify the content type or HTTP status of the rendered response as well.
 
