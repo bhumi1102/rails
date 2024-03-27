@@ -510,34 +510,48 @@ private
 Creating Responses using `redirect_to`
 -------------------------------------
 
-Another way to handle returning responses to an HTTP request is with [`redirect_to`][]. The `render` method tells Rails which view (or other asset) to use in constructing a response. The `redirect_to` method does something completely different: it tells the browser to send a new request for a different URL. For example, you could redirect from wherever you are in a controller action to the photo's index URL `/photos` with this call:
+Another way to create an HTTP response from a controller action is to use the `redirect_to` method. This will send an HTTP redirect response back to the client, instructing the client to send a new request to a different URL.
+
+The `redirect_to` method is typically used to redirect users to a different page after performing some action, such as after submitting a form or after completing a sign-in process.
+
+For example, after creating a book we can `redirect_to` that book's `show` page:
 
 ```ruby
-redirect_to photos_url
+def create
+  @book = Book.new(book_params)
+
+  if @book.save
+    redirect_to book_url(@book), notice: "Book was successfully created."
+  else
+    render :new, status: :unprocessable_entity
+  end
+end
 ```
 
-You can use [`redirect_back`][] to return the user to the page they just came
-from. This location is pulled from the `HTTP_REFERER` header which is not
-guaranteed to be set by the browser, so you must provide the `fallback_location`
-to use in this case.
+If the `@book` was created successfully we use `redirect_to` to tell the client to make a new HTTP request to that book's show page URL (e.g.`books/42`). If you look at the "network" tab of a browser's dev tools, you will see this second request.
+
+There is also a [`redirect_back`][] method that returns the user to the page
+they just came from. The location is pulled from the `HTTP_REFERER` header.
+Since this header is not guaranteed to be set, you must provide the
+`fallback_location`.
 
 ```ruby
 redirect_back(fallback_location: root_path)
 ```
 
-NOTE: `redirect_to` and `redirect_back` do not halt and return immediately from method execution, but simply set HTTP responses. Statements occurring after them in a method will be executed. You can halt by an explicit `return` or some other halting mechanism, if needed.
+NOTE: `redirect_to` and `redirect_back` do not immediately stop the execution of the controller method, they simply set HTTP responses. So statements *after* `redirect_to` in our controller get executed. To terminate the execution of the method immediately after the `redirect_to`, you need to use `return`. For example `redirect_to book_url(@book) and return`
 
 [`redirect_back`]: https://api.rubyonrails.org/classes/ActionController/Redirecting.html#method-i-redirect_back
 
 ### Getting a Different Redirect Status Code
 
-Rails uses HTTP status code 302, a temporary redirect, when you call `redirect_to`. If you'd like to use a different status code, perhaps 301, a permanent redirect, you can use the `:status` option:
+Rails uses HTTP status code 302, a temporary redirect, when you call `redirect_to`. If you'd like to set a different status code, perhaps 301, a permanent redirect, you can use the `:status` option:
 
 ```ruby
-redirect_to photos_path, status: 301
+redirect_to books_path, status: 301
 ```
 
-Just like the `:status` option for `render`, `:status` for `redirect_to` accepts both numeric and symbolic header designations.
+Just like the `:status` option for `render`, `:status` for `redirect_to` accepts both numeric and symbolic values.
 
 The Difference Between `render` and `redirect_to`
 ------------------------------------------------
@@ -606,7 +620,7 @@ This would detect that there are no books with the specified ID, populate the `@
 
 ### Avoiding Double Render Errors
 
-As we saw above, `render` does not stop execution of the controller action. Therefore, if you have multiple `render` statements in a code path, you will get the error message "Can only render or redirect once per action".
+A call to `render` method in a controller action does not stop execution of that action. Therefore, if you have multiple `render` statements in a code path, you will get the error message "Can only render or redirect once per action".
 
 Here's an example that will trigger this error:
 
@@ -639,6 +653,7 @@ end
 But this is not as readable. A better solution is to have a single `render` per code path. Here is the updated `show` action:
 
 ```ruby
+# A better solution for "double render" error.
 def show
   @book = Book.find(params[:id])
   if @book.ebook?
