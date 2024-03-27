@@ -705,7 +705,7 @@ Set-Cookie: _blog_session=...snip...; path=/; HttpOnly
 Cache-Control: no-cache
 ```
 
-todo: add transition between 'rendering stuff' to now 'layout stuff'
+TODO: add transition between 'rendering stuff' to now 'layout stuff'
 
 Finding Layouts
 ---------------
