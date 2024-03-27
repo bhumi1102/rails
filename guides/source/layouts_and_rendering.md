@@ -581,7 +581,7 @@ def show
 end
 ```
 
-With this code, the browser will make a fresh request for the index page, the code in the `index` method will run, and all will be well.
+With this code, the browser will make a new request for the index page, the code in the `index` method will run, and all will be well.
 
 The only downside to this code is that it requires a round trip to the browser: the browser requested the show action with `/books/1` and the controller finds that there are no books, so the controller sends out a 302 redirect response to the browser telling it to go to `/books/`, the browser complies and sends a new request back to the controller asking now for the `index` action, the controller then gets all the books in the database and renders the index template, sending it back down to the browser which then shows it on your screen.
 
@@ -649,7 +649,11 @@ This will render a book with `special?` set with the `special_show` template, wh
 Building Header-Only Responses Using `head`
 ------------------------------------------
 
-The [`head`][] method can be used to send responses with only headers to the browser. The `head` method accepts a number or symbol (see [reference table](#the-status-option)) representing an HTTP status code. The options argument is interpreted as a hash of header names and values. For example, you can return only an error header:
+Rails controller actions can also use the [`head`][] method to send a response with HTTP headers only (no body) to the client.
+
+The `head` method accepts an [HTTP status code](#the-status-option) as a number or symbol. And an options hash with header names and values.
+
+For example, a header only response with `400 Bad Request`:
 
 ```ruby
 head :bad_request
@@ -668,7 +672,7 @@ Set-Cookie: _blog_session=...snip...; path=/; HttpOnly
 Cache-Control: no-cache
 ```
 
-Or you can use other HTTP headers to convey other information:
+Or a response with the HTTP `Location` header set:
 
 ```ruby
 head :created, location: photo_path(@photo)
