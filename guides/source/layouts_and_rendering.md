@@ -606,45 +606,61 @@ This would detect that there are no books with the specified ID, populate the `@
 
 ### Avoiding Double Render Errors
 
-Sooner or later, most Rails developers will see the error message "Can only render or redirect once per action". While this is annoying, it's relatively easy to fix. Usually it happens because of a fundamental misunderstanding of the way that `render` works.
+As we saw above, `render` does not stop execution of the controller action. Therefore, if you have multiple `render` statements in a code path, you will get the error message "Can only render or redirect once per action".
 
-For example, here's some code that will trigger this error:
+Here's an example that will trigger this error:
 
 ```ruby
 def show
   @book = Book.find(params[:id])
-  if @book.special?
-    render action: "special_show"
+  if @book.ebook?
+    render action: "ebook_show"
   end
   render action: "regular_show"
 end
 ```
 
-If `@book.special?` evaluates to `true`, Rails will start the rendering process to dump the `@book` variable into the `special_show` view. But this will _not_ stop the rest of the code in the `show` action from running, and when Rails hits the end of the action, it will start to render the `regular_show` view - and throw an error. The solution is simple: make sure that you have only one call to `render` or `redirect` in a single code path. One thing that can help is `return`. Here's a patched version of the method:
+If `@book.ebook?` is true, the `ebook_show` view will render. However, the code execution continues after the `if` and Rails will see the second `render` and throw the "double render" error at the `render action: "regular_show"` line.
+
+A fix is simple: it's to ensure that there is only one `render` per code path. You *could* add a `return` after the first `render` to force the controller action to stop execution like this:
 
 ```ruby
+# This is a possible fix but a better solution is below.
 def show
   @book = Book.find(params[:id])
-  if @book.special?
-    render action: "special_show"
+  if @book.ebook?
+    render action: "ebook_show"
     return
   end
   render action: "regular_show"
 end
 ```
 
-Note that the implicit render done by ActionController detects if `render` has been called, so the following will work without errors:
+But this is not as readable. A better solution is to have a single `render` per code path. Here is the updated `show` action:
 
 ```ruby
 def show
   @book = Book.find(params[:id])
-  if @book.special?
-    render action: "special_show"
+  if @book.ebook?
+    render action: "ebook_show"
+  else
+    render action: "regular_show"
   end
 end
 ```
 
-This will render a book with `special?` set with the `special_show` template, while other books will render with the default `show` template.
+Note that the implicit `render` at the end of the controller action do not cause a "double render" error. Rails detects if a `render` has already been called for a controller action, so the following will work fine:
+
+```ruby
+def show
+  @book = Book.find(params[:id])
+  if @book.ebook?
+    render action: "ebook_show"
+  end
+end
+```
+
+This will render the `ebook_show` view if `@book.ebook?` is true. Otherwise default rendering the `show` view at the end of the `show` action.
 
 Building Header-Only Responses Using `head`
 ------------------------------------------
