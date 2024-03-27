@@ -598,7 +598,7 @@ end
 
 With this code, the browser will make a new request for the index page, the code in the `index` method will run, which will set the `@books` instance variable, then the `index.html.erb` view will be rendered. And it will all work as expected.
 
-However, rendering all books is not typically what we would do in a `show` action if the given book is not found. If a resource is not found, it is reasonable to return a HTTP 404 Not Found status code.
+Note that the above example is for demonstration. It is not typical to render all books from a `show` action for a given book. If a resource is not found, it is reasonable to return a HTTP 404 Not Found status code when `@book.nil` is true.
 
 ### Avoiding Double Render Errors
 
@@ -646,7 +646,7 @@ def show
 end
 ```
 
-Note that the implicit `render` at the end of the controller action do not cause a "double render" error. Rails detects if a `render` has already been called for a controller action, so the following will work fine:
+Note that the implicit `render` at the end of the controller action does not cause a "double render" error. Rails detects if a `render` has already been called for a controller action, so the following will work fine:
 
 ```ruby
 def show
