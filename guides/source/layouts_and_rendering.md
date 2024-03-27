@@ -556,18 +556,12 @@ Just like the `:status` option for `render`, `:status` for `redirect_to` accepts
 The Difference Between `render` and `redirect_to`
 ------------------------------------------------
 
-Sometimes inexperienced developers think of `redirect_to` as a sort of `goto`
-command, moving execution from one place to another in your Rails code. This is
-_not_ correct.
+As we have seen above, the `redirect_to` method is used to send an HTTP redirect response instructing the client's browser to make a new request to a different URL. And the `render` method is used to render a view template from the current action. As we saw, `render` has many options that allow it to render views from different actions or even different controllers.
 
-The current action will complete, returning a response to the browser. After
-this your code stops running and waits for a new request, it just happens that
-you've told the browser what request it should make next by sending back an
-HTTP 302 status code.
-
-Consider these actions to see the difference:
+So what is the difference between `render` and `redirect_to`? Consider this example:
 
 ```ruby
+# This code does not work as expected.
 def index
   @books = Book.all
 end
@@ -580,9 +574,16 @@ def show
 end
 ```
 
-With the code in this form, there will likely be a problem if the `@book` variable is `nil`. Remember, a `render :action` doesn't run any code in the target action, so nothing will set up the `@books` variable that the `index` view will probably require. One way to fix this is to redirect instead of rendering:
+In the `show` action, if a book with a given `id` is not found, we attempt to show the user all the books by rendering the `index` action with `render action: "index"`. This does not make sense. Here's why:
+
+The `render` call will find the `index.html.erb` file and attempt to render it. However, the `index` view expects a `@books` instance variable to be set. Since we are coming from the `show` action, while trying to render the `index` view, the `@books` instance variable will *not* be set. Note that `render action: "index"` does *not* execute the code in the `index` controller action before rendering the view, it just attempts to render the view specified.
+
+This is the difference between `render` and `redirect_to`. The `redirect_to` method ends the current action, the browser makes a brand new HTTP request, which in turn, execute the appropriate controller action.
+
+The above example updated to use `redirect_to` instead of `render`:
 
 ```ruby
+# This code will work. But is not typically what we do.
 def index
   @books = Book.all
 end
@@ -595,28 +596,9 @@ def show
 end
 ```
 
-With this code, the browser will make a new request for the index page, the code in the `index` method will run, and all will be well.
+With this code, the browser will make a new request for the index page, the code in the `index` method will run, which will set the `@books` instance variable, then the `index.html.erb` view will be rendered. And it will all work as expected.
 
-The only downside to this code is that it requires a round trip to the browser: the browser requested the show action with `/books/1` and the controller finds that there are no books, so the controller sends out a 302 redirect response to the browser telling it to go to `/books/`, the browser complies and sends a new request back to the controller asking now for the `index` action, the controller then gets all the books in the database and renders the index template, sending it back down to the browser which then shows it on your screen.
-
-While in a small application, this added latency might not be a problem, it is something to think about if response time is a concern. We can demonstrate one way to handle this with a contrived example:
-
-```ruby
-def index
-  @books = Book.all
-end
-
-def show
-  @book = Book.find_by(id: params[:id])
-  if @book.nil?
-    @books = Book.all
-    flash.now[:alert] = "Your book was not found"
-    render "index"
-  end
-end
-```
-
-This would detect that there are no books with the specified ID, populate the `@books` instance variable with all the books in the model, and then directly render the `index.html.erb` template, returning it to the browser with a flash alert message to tell the user what happened.
+However, rendering all books is not typically what we would do in a `show` action if the given book is not found. If a resource is not found, it is reasonable to return a HTTP 404 Not Found status code.
 
 ### Avoiding Double Render Errors
 
