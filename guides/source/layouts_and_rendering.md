@@ -337,8 +337,7 @@ render renderable: Greeting.new
 # => "Hello World"
 ```
 
-Options for `render`
--------------------
+### Options for `render`
 
 Calls to the [`render`][controller.render] method generally accept six options:
 
@@ -351,7 +350,7 @@ Calls to the [`render`][controller.render] method generally accept six options:
 
 This section provides examples of using each of these options.
 
-### The `:content_type` Option
+#### The `:content_type` Option
 
 By default, Rails will serve the results of a rendering operation with the MIME content-type of `text/html` (or `application/json` if you use the `:json` option, or `application/xml` for the `:xml` option.). If you need to change the content-type, you can do so by setting the `:content_type` option:
 
@@ -359,7 +358,7 @@ By default, Rails will serve the results of a rendering operation with the MIME 
 render template: "feed", content_type: "application/rss"
 ```
 
-### The `:layout` Option
+#### The `:layout` Option
 
 With most of the options to `render`, the rendered content is displayed as part of the current layout. This guide covers more about [finding](#finding-layouts) and [using layouts](#using-layouts-to-wrap-views) in the sections below.
 
@@ -375,7 +374,7 @@ You can also tell Rails to render with no layout at all:
 render layout: false
 ```
 
-### The `:location` Option
+#### The `:location` Option
 
 You can use the `:location` option to set the HTTP `Location` header:
 
@@ -383,7 +382,7 @@ You can use the `:location` option to set the HTTP `Location` header:
 render xml: photo, location: photo_url(photo)
 ```
 
-### The `:status` Option
+#### The `:status` Option
 
 Rails will automatically generate a response with the correct HTTP status code (in most cases, this is `200 OK`). You can use the `:status` option to change this:
 
@@ -459,7 +458,7 @@ Rails understands both numeric status codes and the corresponding symbols shown 
 NOTE:  If you try to render content along with a non-content status code
 (100-199, 204, 205, or 304), it will be dropped from the response.
 
-### The `:formats` Option
+#### The `:formats` Option
 
 Rails uses the format specified in the request (or `:html` by default). You can
 change this passing the `:formats` option with a symbol or an array:
@@ -471,7 +470,7 @@ render formats: [:json, :xml]
 
 If a template with the specified format does not exist an `ActionView::MissingTemplate` error is raised.
 
-### The `:variants` Option
+#### The `:variants` Option
 
 The `:variants` options tells Rails to look for template variations of the same
 format. You can specify a list of variants by passing the `:variants` option
