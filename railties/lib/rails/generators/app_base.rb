@@ -16,7 +16,7 @@ module Rails
       include Devcontainer
       include AppName
 
-      NODE_LTS_VERSION = "18.15.0"
+      NODE_LTS_VERSION = "20.11.1"
       BUN_VERSION = "1.0.1"
 
       JAVASCRIPT_OPTIONS = %w( importmap bun webpack esbuild rollup )
@@ -672,7 +672,6 @@ module Rails
         if !File.exist?(File.expand_path("Gemfile", destination_root))
           create_file("Gemfile", <<~GEMFILE)
             source "https://rubygems.org"
-            git_source(:github) { |repo| "https://github.com/\#{repo}.git" }
             #{rails_gemfile_entry}
           GEMFILE
 

@@ -198,6 +198,8 @@ ActiveRecord::Schema.define do
     t.integer :engines_count
     t.integer :wheels_count, default: 0, null: false
     t.datetime :wheels_owned_at
+    t.integer :bulbs_count
+    t.integer :custom_tyres_count
     t.column :lock_version, :integer, null: false, default: 0
     t.timestamps null: false
   end
@@ -305,6 +307,18 @@ ActiveRecord::Schema.define do
     t.string :signature
 
     t.index :order_id
+  end
+
+  create_table :cpk_cars, force: true, primary_key: [:make, :model] do |t|
+    t.string :make, null: false
+    t.string :model, null: false
+  end
+
+  create_table :cpk_car_reviews, force: true do |t|
+    t.string :car_make, null: false
+    t.string :car_model, null: false
+    t.text :comment
+    t.integer :rating
   end
 
   create_table :paragraphs, force: true do |t|
@@ -1486,13 +1500,13 @@ ActiveRecord::Schema.define do
   end
 end
 
-if ActiveRecord::Base.connection.supports_insert_returning? && !ActiveRecord::TestCase.current_adapter?(:SQLite3Adapter)
-  ActiveRecord::Base.connection.create_table :pk_autopopulated_by_a_trigger_records, force: true, id: false do |t|
+if ActiveRecord::Base.lease_connection.supports_insert_returning? && !ActiveRecord::TestCase.current_adapter?(:SQLite3Adapter)
+  ActiveRecord::Base.lease_connection.create_table :pk_autopopulated_by_a_trigger_records, force: true, id: false do |t|
     t.integer :id, null: false
   end
 
   if ActiveRecord::TestCase.current_adapter?(:PostgreSQLAdapter)
-    ActiveRecord::Base.connection.execute(
+    ActiveRecord::Base.lease_connection.execute(
       <<-SQL
         CREATE OR REPLACE FUNCTION populate_column()
         RETURNS TRIGGER AS $$
@@ -1512,7 +1526,7 @@ if ActiveRecord::Base.connection.supports_insert_returning? && !ActiveRecord::Te
       SQL
     )
   elsif ActiveRecord::TestCase.current_adapter?(:Mysql2Adapter, :TrilogyAdapter)
-    ActiveRecord::Base.connection.execute(
+    ActiveRecord::Base.lease_connection.execute(
       <<-SQL
         CREATE TRIGGER before_insert_trigger
         BEFORE INSERT ON pk_autopopulated_by_a_trigger_records
@@ -1523,22 +1537,22 @@ if ActiveRecord::Base.connection.supports_insert_returning? && !ActiveRecord::Te
   end
 end
 
-Course.connection.create_table :courses, force: true do |t|
+Course.lease_connection.create_table :courses, force: true do |t|
   t.column :name, :string, null: false
   t.column :college_id, :integer, index: true
 end
 
-College.connection.create_table :colleges, force: true do |t|
+College.lease_connection.create_table :colleges, force: true do |t|
   t.column :name, :string, null: false
 end
 
-Professor.connection.create_table :professors, force: true do |t|
+Professor.lease_connection.create_table :professors, force: true do |t|
   t.column :name, :string, null: false
 end
 
-Professor.connection.create_table :courses_professors, id: false, force: true do |t|
+Professor.lease_connection.create_table :courses_professors, id: false, force: true do |t|
   t.references :course
   t.references :professor
 end
 
-OtherDog.connection.create_table :dogs, force: true
+OtherDog.lease_connection.create_table :dogs, force: true

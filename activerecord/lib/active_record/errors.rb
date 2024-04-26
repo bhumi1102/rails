@@ -58,7 +58,7 @@ module ActiveRecord
   end
 
   # Raised when connection to the database could not been established (for example when
-  # {ActiveRecord::Base.connection=}[rdoc-ref:ConnectionHandling#connection]
+  # {ActiveRecord::Base.lease_connection=}[rdoc-ref:ConnectionHandling#lease_connection]
   # is given a +nil+ object).
   class ConnectionNotEstablished < AdapterError
     def initialize(message = nil, connection_pool: nil)
@@ -574,5 +574,10 @@ module ActiveRecord
   # Again, such a workaround should *not* be used when passing user-provided
   # values, such as request parameters or model attributes to query methods.
   class UnknownAttributeReference < ActiveRecordError
+  end
+
+  # DatabaseVersionError will be raised when the database version is not supported, or when
+  # the database version cannot be determined.
+  class DatabaseVersionError < ActiveRecordError
   end
 end

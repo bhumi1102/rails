@@ -277,12 +277,12 @@ Expected: ["id", "name"]
 
       app_file "lib/tasks/hooks.rake", <<-RUBY
         task :before_hook do
-          has_user_table = ActiveRecord::Base.connection.table_exists?('users')
+          has_user_table = ActiveRecord::Base.lease_connection.table_exists?('users')
           puts "before: " + has_user_table.to_s
         end
 
         task :after_hook do
-          has_user_table = ActiveRecord::Base.connection.table_exists?('users')
+          has_user_table = ActiveRecord::Base.lease_connection.table_exists?('users')
           puts "after: " + has_user_table.to_s
         end
 
@@ -343,6 +343,45 @@ Expected: ["id", "name"]
       RUBY
 
       assert_unsuccessful_run "models/user_test.rb", "SCHEMA LOADED!"
+    end
+
+    def test_actionable_command_line_error_with_tty
+      rails "generate", "scaffold", "user", "name:string"
+      app_file "config/initializers/thor_yes.rb", <<-RUBY
+        Rails::Command::Base.class_eval <<-INITIALIZER
+          def yes?(statement, color = nil)
+            raise ArgumentError unless statement == "Run pending migrations? [Yn]"
+            true
+          end
+
+          def tty?
+            true
+          end
+        INITIALIZER
+      RUBY
+
+      run_test_file("models/user_test.rb").tap do |output|
+        assert_match "Migrations are pending. To resolve this issue, run:", output
+        assert_match "CreateUsers: migrating", output
+        assert_match "0 runs, 0 assertions, 0 failures, 0 errors, 0 skips", output
+      end
+    end
+
+    def test_actionable_command_line_without_tty
+      rails "generate", "scaffold", "user", "name:string"
+      app_file "config/initializers/thor_yes.rb", <<-RUBY
+        Rails::Command::Base.class_eval <<-INITIALIZER
+          def tty?
+            false
+          end
+        INITIALIZER
+      RUBY
+
+      run_test_file("models/user_test.rb").tap do |output|
+        assert_match "Migrations are pending. To resolve this issue, run:", output
+        assert_no_match "CreateUsers: migrating", output
+        assert_no_match "0 runs, 0 assertions, 0 failures, 0 errors, 0 skips", output
+      end
     end
 
     private

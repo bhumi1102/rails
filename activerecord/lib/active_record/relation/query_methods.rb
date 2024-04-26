@@ -622,7 +622,8 @@ module ActiveRecord
       self
     end
 
-    # Allows to specify an order by a specific set of values.
+    # Applies an <tt>ORDER BY</tt> clause based on a given +column+,
+    # ordered and filtered by a specific set of +values+.
     #
     #   User.in_order_of(:id, [1, 5, 3])
     #   # SELECT "users".* FROM "users"
@@ -631,6 +632,32 @@ module ActiveRecord
     #   #     WHEN "users"."id" = 1 THEN 1
     #   #     WHEN "users"."id" = 5 THEN 2
     #   #     WHEN "users"."id" = 3 THEN 3
+    #   #   END ASC
+    #
+    # +column+ can point to an enum column; the actual query generated may be different depending
+    # on the database adapter and the column definition.
+    #
+    #   class Conversation < ActiveRecord::Base
+    #     enum :status, [ :active, :archived ]
+    #   end
+    #
+    #   Conversation.in_order_of(:status, [:archived, :active])
+    #   # SELECT "conversations".* FROM "conversations"
+    #   #   WHERE "conversations"."status" IN (1, 0)
+    #   #   ORDER BY CASE
+    #   #     WHEN "conversations"."status" = 1 THEN 1
+    #   #     WHEN "conversations"."status" = 0 THEN 2
+    #   #   END ASC
+    #
+    # +values+ can also include +nil+.
+    #
+    #   Conversation.in_order_of(:status, [nil, :archived, :active])
+    #   # SELECT "conversations".* FROM "conversations"
+    #   #   WHERE ("conversations"."status" IN (1, 0) OR "conversations"."status" IS NULL)
+    #   #   ORDER BY CASE
+    #   #     WHEN "conversations"."status" IS NULL THEN 1
+    #   #     WHEN "conversations"."status" = 1 THEN 2
+    #   #     WHEN "conversations"."status" = 0 THEN 3
     #   #   END ASC
     #
     def in_order_of(column, values)
@@ -1098,7 +1125,7 @@ module ActiveRecord
         raise ArgumentError, "Relation passed to #or must be structurally compatible. Incompatible values: #{incompatible_values}"
       end
 
-      self.where_clause = self.where_clause.or(other.where_clause)
+      self.where_clause = where_clause.or(other.where_clause)
       self.having_clause = having_clause.or(other.having_clause)
       self.references_values |= other.references_values
 
@@ -1653,7 +1680,7 @@ module ActiveRecord
 
         arel.where(where_clause.ast) unless where_clause.empty?
         arel.having(having_clause.ast) unless having_clause.empty?
-        arel.take(build_cast_value("LIMIT", connection.sanitize_limit(limit_value))) if limit_value
+        arel.take(build_cast_value("LIMIT", lease_connection.sanitize_limit(limit_value))) if limit_value
         arel.skip(build_cast_value("OFFSET", offset_value.to_i)) if offset_value
         arel.group(*arel_columns(group_values.uniq)) unless group_values.empty?
 
@@ -1854,6 +1881,8 @@ module ActiveRecord
             arel_column(field, &:itself)
           when Proc
             field.call
+          when Hash
+            arel_columns_from_hash(field)
           else
             field
           end
@@ -1944,8 +1973,8 @@ module ActiveRecord
         end
       end
 
-      def flattened_args(order_args)
-        order_args.flat_map { |e| (e.is_a?(Hash) || e.is_a?(Array)) ? flattened_args(e.to_a) : e }
+      def flattened_args(args)
+        args.flat_map { |e| (e.is_a?(Hash) || e.is_a?(Array)) ? flattened_args(e.to_a) : e }
       end
 
       def preprocess_order_args(order_args)
@@ -2013,7 +2042,7 @@ module ActiveRecord
           if attr_name == "count" && !group_values.empty?
             table[attr_name]
           else
-            Arel.sql(adapter_class.quote_table_name(attr_name))
+            Arel.sql(adapter_class.quote_table_name(attr_name), retryable: true)
           end
         end
       end
@@ -2081,14 +2110,14 @@ module ActiveRecord
       def process_select_args(fields)
         fields.flat_map do |field|
           if field.is_a?(Hash)
-            transform_select_hash_values(field)
+            arel_columns_from_hash(field)
           else
             field
           end
         end
       end
 
-      def transform_select_hash_values(fields)
+      def arel_columns_from_hash(fields)
         fields.flat_map do |key, columns_aliases|
           case columns_aliases
           when Hash

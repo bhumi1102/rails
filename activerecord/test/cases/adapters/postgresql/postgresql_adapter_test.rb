@@ -14,7 +14,7 @@ module ActiveRecord
       include ConnectionHelper
 
       def setup
-        @connection = ActiveRecord::Base.connection
+        @connection = ActiveRecord::Base.lease_connection
         @original_db_warnings_action = :ignore
       end
 
@@ -346,6 +346,22 @@ module ActiveRecord
             assert_equal ["number", "data"], index.include
           end
         end
+
+        def test_include_keyword_column_name
+          with_example_table("id integer, timestamp integer") do
+            @connection.add_index "ex", :id, name: "include", include: [:timestamp]
+            index = @connection.indexes("ex").find { |idx| idx.name == "include" }
+            assert_equal ["timestamp"], index.include
+          end
+        end
+
+        def test_include_escaped_quotes_column_name
+          with_example_table(%{id integer, "I""like""quotes" integer}) do
+            @connection.add_index "ex", :id, name: "include", include: [:"I\"like\"quotes"]
+            index = @connection.indexes("ex").find { |idx| idx.name == "include" }
+            assert_equal ["I\"like\"quotes"], index.include
+          end
+        end
       end
 
       def test_expression_index
@@ -477,7 +493,7 @@ module ActiveRecord
 
       def test_only_reload_type_map_once_for_every_unrecognized_type
         reset_connection
-        connection = ActiveRecord::Base.connection
+        connection = ActiveRecord::Base.lease_connection
         connection.select_all "SELECT 1" # eagerly initialize the connection
 
         silence_warnings do
@@ -497,7 +513,7 @@ module ActiveRecord
 
       def test_only_warn_on_first_encounter_of_unrecognized_oid
         reset_connection
-        connection = ActiveRecord::Base.connection
+        connection = ActiveRecord::Base.lease_connection
 
         warning = capture(:stderr) {
           connection.select_all "select 'pg_catalog.pg_class'::regclass"

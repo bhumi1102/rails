@@ -14,7 +14,7 @@ module ActiveRecord
         sql
       end
 
-      def to_sql_and_binds(arel_or_sql_string, binds = [], preparable = nil) # :nodoc:
+      def to_sql_and_binds(arel_or_sql_string, binds = [], preparable = nil, allow_retry = false) # :nodoc:
         # Arel::TreeManager -> Arel::Node
         if arel_or_sql_string.respond_to?(:ast)
           arel_or_sql_string = arel_or_sql_string.ast
@@ -27,6 +27,7 @@ module ActiveRecord
           end
 
           collector = collector()
+          collector.retryable = true
 
           if prepared_statements
             collector.preparable = true
@@ -41,10 +42,11 @@ module ActiveRecord
           else
             sql = visitor.compile(arel_or_sql_string, collector)
           end
-          [sql.freeze, binds, preparable]
+          allow_retry = collector.retryable
+          [sql.freeze, binds, preparable, allow_retry]
         else
           arel_or_sql_string = arel_or_sql_string.dup.freeze unless arel_or_sql_string.frozen?
-          [arel_or_sql_string, binds, preparable]
+          [arel_or_sql_string, binds, preparable, allow_retry]
         end
       end
       private :to_sql_and_binds
@@ -64,11 +66,15 @@ module ActiveRecord
       end
 
       # Returns an ActiveRecord::Result instance.
-      def select_all(arel, name = nil, binds = [], preparable: nil, async: false)
+      def select_all(arel, name = nil, binds = [], preparable: nil, async: false, allow_retry: false)
         arel = arel_from_relation(arel)
-        sql, binds, preparable = to_sql_and_binds(arel, binds, preparable)
+        sql, binds, preparable, allow_retry = to_sql_and_binds(arel, binds, preparable, allow_retry)
 
-        select(sql, name, binds, prepare: prepared_statements && preparable, async: async && FutureResult::SelectAll)
+        select(sql, name, binds,
+          prepare: prepared_statements && preparable,
+          async: async && FutureResult::SelectAll,
+          allow_retry: allow_retry
+        )
       rescue ::RangeError
         ActiveRecord::Result.empty(async: async)
       end
@@ -229,6 +235,17 @@ module ActiveRecord
       # Runs the given block in a database transaction, and returns the result
       # of the block.
       #
+      # == Transaction callbacks
+      #
+      # #transaction yields an ActiveRecord::Transaction object on which it is
+      # possible to register callback:
+      #
+      #   ActiveRecord::Base.transaction do |transaction|
+      #     transaction.before_commit { puts "before commit!" }
+      #     transaction.after_commit { puts "after commit!" }
+      #     transaction.after_rollback { puts "after rollback!" }
+      #   end
+      #
       # == Nested transactions support
       #
       # #transaction calls can be nested. By default, this makes all database
@@ -296,9 +313,9 @@ module ActiveRecord
       # #transaction will raise exceptions when it tries to release the
       # already-automatically-released savepoints:
       #
-      #   Model.connection.transaction do  # BEGIN
-      #     Model.connection.transaction(requires_new: true) do  # CREATE SAVEPOINT active_record_1
-      #       Model.connection.create_table(...)
+      #   Model.lease_connection.transaction do  # BEGIN
+      #     Model.lease_connection.transaction(requires_new: true) do  # CREATE SAVEPOINT active_record_1
+      #       Model.lease_connection.create_table(...)
       #       # active_record_1 now automatically released
       #     end  # RELEASE SAVEPOINT active_record_1  <--- BOOM! database error!
       #   end
@@ -339,7 +356,7 @@ module ActiveRecord
           if isolation
             raise ActiveRecord::TransactionIsolationError, "cannot set isolation when joining a transaction"
           end
-          yield
+          yield current_transaction
         else
           transaction_manager.within_new_transaction(isolation: isolation, joinable: joinable, &block)
         end
@@ -495,7 +512,7 @@ module ActiveRecord
       end
 
       # This is a safe default, even if not high precision on all databases
-      HIGH_PRECISION_CURRENT_TIMESTAMP = Arel.sql("CURRENT_TIMESTAMP").freeze # :nodoc:
+      HIGH_PRECISION_CURRENT_TIMESTAMP = Arel.sql("CURRENT_TIMESTAMP", retryable: true).freeze # :nodoc:
       private_constant :HIGH_PRECISION_CURRENT_TIMESTAMP
 
       # Returns an Arel SQL literal for the CURRENT_TIMESTAMP for usage with
@@ -507,7 +524,7 @@ module ActiveRecord
         HIGH_PRECISION_CURRENT_TIMESTAMP
       end
 
-      def internal_exec_query(sql, name = "SQL", binds = [], prepare: false, async: false) # :nodoc:
+      def internal_exec_query(sql, name = "SQL", binds = [], prepare: false, async: false, allow_retry: false) # :nodoc:
         raise NotImplementedError
       end
 
@@ -606,7 +623,7 @@ module ActiveRecord
         end
 
         # Returns an ActiveRecord::Result instance.
-        def select(sql, name = nil, binds = [], prepare: false, async: false)
+        def select(sql, name = nil, binds = [], prepare: false, async: false, allow_retry: false)
           if async && async_enabled?
             if current_transaction.joinable?
               raise AsynchronousQueryInsideTransactionError, "Asynchronous queries are not allowed inside transactions"
@@ -627,7 +644,7 @@ module ActiveRecord
             return future_result
           end
 
-          result = internal_exec_query(sql, name, binds, prepare: prepare)
+          result = internal_exec_query(sql, name, binds, prepare: prepare, allow_retry: allow_retry)
           if async
             FutureResult.wrap(result)
           else

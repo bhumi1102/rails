@@ -6,7 +6,7 @@ class CopyTableTest < ActiveRecord::SQLite3TestCase
   fixtures :customers
 
   def setup
-    @connection = ActiveRecord::Base.connection
+    @connection = ActiveRecord::Base.lease_connection
   end
 
   def test_copy_table(from = "customers", to = "customers2", options = {})
@@ -83,6 +83,20 @@ class CopyTableTest < ActiveRecord::SQLite3TestCase
 
   def test_copy_table_with_binary_column
     test_copy_table "binaries", "binaries2"
+  end
+
+  def test_copy_table_with_virtual_column
+    @connection.create_table :virtual_columns, force: true do |t|
+      t.string  :name
+      t.virtual :upper_name, type: :string, as: "UPPER(name)", stored: true
+    end
+
+    test_copy_table("virtual_columns", "virtual_columns2") do
+      column = @connection.columns("virtual_columns2").find { |col| col.name == "upper_name" }
+      assert_predicate column, :virtual_stored?
+      assert_equal :string, column.type
+      assert_equal "UPPER(name)", column.default_function
+    end
   end
 
 private

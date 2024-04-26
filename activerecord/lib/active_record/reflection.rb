@@ -11,6 +11,7 @@ module ActiveRecord
       class_attribute :_reflections, instance_writer: false, default: {}
       class_attribute :aggregate_reflections, instance_writer: false, default: {}
       class_attribute :automatic_scope_inversing, instance_writer: false, default: false
+      class_attribute :automatically_invert_plural_associations, instance_writer: false, default: false
     end
 
     class << self
@@ -235,14 +236,16 @@ module ActiveRecord
       end
 
       def counter_cache_column
-        @counter_cache_column ||= if belongs_to?
-          if options[:counter_cache] == true
-            -"#{active_record.name.demodulize.underscore.pluralize}_count"
-          elsif options[:counter_cache]
-            -options[:counter_cache].to_s
+        @counter_cache_column ||= begin
+          counter_cache = options[:counter_cache]
+
+          if belongs_to?
+            if counter_cache
+              counter_cache[:column] || -"#{active_record.name.demodulize.underscore.pluralize}_count"
+            end
+          else
+            -((counter_cache && -counter_cache[:column]) || "#{name}_count")
           end
-        else
-          -(options[:counter_cache]&.to_s || "#{name}_count")
         end
       end
 
@@ -291,7 +294,7 @@ module ActiveRecord
         inverse_of && inverse_which_updates_counter_cache == inverse_of
       end
 
-      # Returns whether a counter cache should be used for this association.
+      # Returns whether this association has a counter cache.
       #
       # The counter_cache option must be given on either the owner or inverse
       # association, and the column must be present on the owner.
@@ -299,6 +302,17 @@ module ActiveRecord
         options[:counter_cache] ||
           inverse_which_updates_counter_cache && inverse_which_updates_counter_cache.options[:counter_cache] &&
           active_record.has_attribute?(counter_cache_column)
+      end
+
+      # Returns whether this association has a counter cache and its column values were backfilled
+      # (and so it is used internally by methods like +size+/+any?+/etc).
+      def has_active_cached_counter?
+        return false unless has_cached_counter?
+
+        counter_cache = options[:counter_cache] ||
+                        (inverse_which_updates_counter_cache && inverse_which_updates_counter_cache.options[:counter_cache])
+
+        counter_cache[:active] != false
       end
 
       def counter_must_be_updated_by_has_many?
@@ -377,12 +391,11 @@ module ActiveRecord
         super()
         @name          = name
         @scope         = scope
-        @options       = options
+        @options       = normalize_options(options)
         @active_record = active_record
         @klass         = options[:anonymous_class]
         @plural_name   = active_record.pluralize_table_names ?
                             name.to_s.pluralize : name.to_s
-        validate_reflection!
       end
 
       def autosave=(autosave)
@@ -435,15 +448,24 @@ module ActiveRecord
           name.to_s.camelize
         end
 
-        def validate_reflection!
-          return unless options[:foreign_key].is_a?(Array)
+        def normalize_options(options)
+          counter_cache = options.delete(:counter_cache)
 
-          message = <<~MSG.squish
-            Passing #{options[:foreign_key]} array to :foreign_key option
-            on the #{active_record}##{name} association is not supported.
-            Use the query_constraints: #{options[:foreign_key]} option instead to represent a composite foreign key.
-          MSG
-          raise ArgumentError, message
+          if counter_cache
+            active = true
+
+            case counter_cache
+            when String, Symbol
+              column = -counter_cache.to_s
+            when Hash
+              active = counter_cache.fetch(:active, true)
+              column = counter_cache[:column]&.to_s
+            end
+
+            options[:counter_cache] = { active: active, column: column }
+          end
+
+          options
         end
     end
 
@@ -494,6 +516,10 @@ module ActiveRecord
         @foreign_key = nil
         @association_foreign_key = nil
         @association_primary_key = nil
+        # If the foreign key is an array, set query constraints options and don't use the foreign key
+        if options[:foreign_key].is_a?(Array)
+          options[:query_constraints] = options.delete(:foreign_key)
+        end
 
         ensure_option_not_given_as_class!(:class_name)
       end
@@ -511,10 +537,14 @@ module ActiveRecord
       end
 
       def foreign_key(infer_from_inverse_of: true)
-        @foreign_key ||= if options[:query_constraints]
+        @foreign_key ||= if options[:foreign_key]
+          if options[:foreign_key].is_a?(Array)
+            options[:foreign_key].map { |fk| fk.to_s.freeze }.freeze
+          else
+            options[:foreign_key].to_s.freeze
+          end
+        elsif options[:query_constraints]
           options[:query_constraints].map { |fk| fk.to_s.freeze }.freeze
-        elsif options[:foreign_key]
-          options[:foreign_key].to_s
         else
           derived_fk = derive_foreign_key(infer_from_inverse_of: infer_from_inverse_of)
 
@@ -708,10 +738,25 @@ module ActiveRecord
         def automatic_inverse_of
           if can_find_inverse_of_automatically?(self)
             inverse_name = ActiveSupport::Inflector.underscore(options[:as] || active_record.name.demodulize).to_sym
-            plural_inverse_name = ActiveSupport::Inflector.pluralize(inverse_name)
 
             begin
-              reflection = klass._reflect_on_association(inverse_name) || klass._reflect_on_association(plural_inverse_name)
+              reflection = klass._reflect_on_association(inverse_name)
+              if !reflection
+                plural_inverse_name = ActiveSupport::Inflector.pluralize(inverse_name)
+                reflection = klass._reflect_on_association(plural_inverse_name)
+
+                if reflection && !active_record.automatically_invert_plural_associations
+                  ActiveRecord.deprecator.warn(
+                    "The `#{active_record.name}##{name}` inverse association could have been automatically" \
+                    " inferred as `#{klass.name}##{plural_inverse_name}` but wasn't because `automatically_invert_plural_associations`" \
+                    " is disabled.\n\n" \
+                    "If automatic inference is intended, you can consider enabling" \
+                    " `config.active_record.automatically_invert_plural_associations`.\n\n" \
+                    "If automatic inference is not intended, you can silence this warning by defining the association with `inverse_of: nil`."
+                  )
+                  reflection = nil
+                end
+              end
             rescue NameError => error
               raise unless error.name.to_s == class_name
 
@@ -787,7 +832,7 @@ module ActiveRecord
           primary_query_constraints = active_record.query_constraints_list
           owner_pk = active_record.primary_key
 
-          if primary_query_constraints.size != 2
+          if primary_query_constraints.size > 2
             raise ArgumentError, <<~MSG.squish
               The query constraints list on the `#{active_record}` model has more than 2
               attributes. Active Record is unable to derive the query constraints
@@ -804,6 +849,8 @@ module ActiveRecord
               association.
             MSG
           end
+
+          return foreign_key if primary_query_constraints.include?(foreign_key)
 
           first_key, last_key = primary_query_constraints
 
@@ -870,7 +917,11 @@ module ActiveRecord
       # klass option is necessary to support loading polymorphic associations
       def association_primary_key(klass = nil)
         if primary_key = options[:primary_key]
-          @association_primary_key ||= -primary_key.to_s
+          @association_primary_key ||= if primary_key.is_a?(Array)
+            primary_key.map { |pk| pk.to_s.freeze }.freeze
+          else
+            -primary_key.to_s
+          end
         elsif (klass || self.klass).has_query_constraints? || options[:query_constraints]
           (klass || self.klass).composite_query_constraints_list
         elsif (klass || self.klass).composite_primary_key?

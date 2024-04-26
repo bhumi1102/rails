@@ -1,3 +1,206 @@
+*   Strict loading using `:n_plus_one_only` does not eagerly load child associations.
+
+    With this change, child associations are no longer eagerly loaded, to
+    match intended behavior and to prevent non-deterministic order issues caused
+    by calling methods like `first` or `last`. As `first` and `last` don't cause
+    an N+1 by themselves, calling child associations will no longer raise.
+    Fixes #49473.
+
+    Before:
+
+    ```ruby
+    person = Person.find(1)
+    person.strict_loading!(mode: :n_plus_one_only)
+    person.posts.first
+    # SELECT * FROM posts WHERE person_id = 1; -- non-deterministic order
+    person.posts.first.firm # raises ActiveRecord::StrictLoadingViolationError
+    ```
+
+    After:
+
+    ```ruby
+    person = Person.find(1)
+    person.strict_loading!(mode: :n_plus_one_only)
+    person.posts.first # this is 1+1, not N+1
+    # SELECT * FROM posts WHERE person_id = 1 ORDER BY id LIMIT 1;
+    person.posts.first.firm # no longer raises
+    ```
+
+    *Reid Lynch*
+
+*   Allow `Sqlite3Adapter` to use `sqlite3` gem version `2.x`
+
+    *Mike Dalessio*
+
+*   Allow `ActiveRecord::Base#pluck` to accept hash values
+
+    ```ruby
+    # Before
+    Post.joins(:comments).pluck("posts.id", "comments.id", "comments.body")
+
+    # After
+    Post.joins(:comments).pluck(posts: [:id], comments: [:id, :body])
+    ```
+
+    *fatkodima*
+
+*   Raise an `ActiveRecord::ActiveRecordError` error when the MySQL database returns an invalid version string.
+
+    *Kevin McPhillips*
+
+*   `ActiveRecord::Base.transaction` now yields an `ActiveRecord::Transaction` object.
+
+    This allows to register callbacks on it.
+
+    ```ruby
+    Article.transaction do |transaction|
+      article.update(published: true)
+      transaction.after_commit do
+        PublishNotificationMailer.with(article: article).deliver_later
+      end
+    end
+    ```
+
+    *Jean Boussier*
+
+*   Add `ActiveRecord::Base.current_transaction`.
+
+    Returns the current transaction, to allow registering callbacks on it.
+
+    ```ruby
+    Article.current_transaction.after_commit do
+      PublishNotificationMailer.with(article: article).deliver_later
+    end
+    ```
+
+    *Jean Boussier*
+
+*   Add `ActiveRecord.after_all_transactions_commit` callback.
+
+    Useful for code that may run either inside or outside a transaction and needs
+    to perform work after the state changes have been properly persisted.
+
+    ```ruby
+    def publish_article(article)
+      article.update(published: true)
+      ActiveRecord.after_all_transactions_commit do
+        PublishNotificationMailer.with(article: article).deliver_later
+      end
+    end
+    ```
+
+    In the above example, the block is either executed immediately if called outside
+    of a transaction, or called after the open transaction is committed.
+
+    If the transaction is rolled back, the block isn't called.
+
+    *Jean Boussier*
+
+*   Add the ability to ignore counter cache columns until they are backfilled.
+
+    Starting to use counter caches on existing large tables can be troublesome, because the column
+    values must be backfilled separately of the column addition (to not lock the table for too long)
+    and before the use of `:counter_cache` (otherwise methods like `size`/`any?`/etc, which use
+    counter caches internally, can produce incorrect results). People usually use database triggers
+    or callbacks on child associations while backfilling before introducing a counter cache
+    configuration to the association.
+
+    Now, to safely backfill the column, while keeping the column updated with child records added/removed, use:
+
+    ```ruby
+    class Comment < ApplicationRecord
+      belongs_to :post, counter_cache: { active: false }
+    end
+    ```
+
+    While the counter cache is not "active", the methods like `size`/`any?`/etc will not use it,
+    but get the results directly from the database. After the counter cache column is backfilled, simply
+    remove the `{ active: false }` part from the counter cache definition, and it will now be used by the
+    mentioned methods.
+
+    *fatkodima*
+
+*   Retry known idempotent SELECT queries on connection-related exceptions.
+
+    SELECT queries we construct by walking the Arel tree and / or with known model attributes
+    are idempotent and can safely be retried in the case of a connection error. Previously,
+    adapters such as `TrilogyAdapter` would raise `ActiveRecord::ConnectionFailed: Trilogy::EOFError`
+    when encountering a connection error mid-request.
+
+    *Adrianna Chang*
+
+*   Allow association's `foreign_key` to be composite.
+
+    `query_constraints` option was the only way to configure a composite foreign key by passing an `Array`.
+    Now it's possible to pass an Array value as `foreign_key` to achieve the same behavior of an association.
+
+    *Nikita Vasilevsky*
+
+*   Allow association's `primary_key` to be composite.
+
+    Association's `primary_key` can be composite when derived from associated model `primary_key` or `query_constraints`.
+    Now it's possible to explicitly set it as composite on the association.
+
+    *Nikita Vasilevsky*
+
+*   Add `config.active_record.permanent_connection_checkout` setting.
+
+    Controls whether `ActiveRecord::Base.connection` raises an error, emits a deprecation warning, or neither.
+
+    `ActiveRecord::Base.connection` checkouts a database connection from the pool and keeps it leased until the end of
+    the request or job. This behavior can be undesirable in environments that use many more threads or fibers than there
+    is available connections.
+
+    This configuration can be used to track down and eliminate code that calls `ActiveRecord::Base.connection` and
+    migrate it to use `ActiveRecord::Base.with_connection` instead.
+
+    The default behavior remains unchanged, and there is currently no plans to change the default.
+
+    *Jean Boussier*
+
+*   Add dirties option to uncached.
+
+    This adds a `dirties` option to `ActiveRecord::Base.uncached` and
+    `ActiveRecord::ConnectionAdapters::ConnectionPool#uncached`.
+
+    When set to `true` (the default), writes will clear all query caches belonging to the current thread.
+    When set to `false`, writes to the affected connection pool will not clear any query cache.
+
+    This is needed by Solid Cache so that cache writes do not clear query caches.
+
+    *Donal McBreen*
+
+*   Deprecate `ActiveRecord::Base.connection` in favor of `.lease_connection`.
+
+    The method has been renamed as `lease_connection` to better reflect that the returned
+    connection will be held for the duration of the request or job.
+
+    This deprecation is a soft deprecation, no warnings will be issued and there is no
+    current plan to remove the method.
+
+    *Jean Boussier*
+
+*   Deprecate `ActiveRecord::ConnectionAdapters::ConnectionPool#connection`.
+
+    The method has been renamed as `lease_connection` to better reflect that the returned
+    connection will be held for the duration of the request or job.
+
+    *Jean Boussier*
+
+*   Expose a generic fixture accessor for fixture names that may conflict with Minitest.
+
+    ```ruby
+    assert_equal "Ruby on Rails", web_sites(:rubyonrails).name
+    assert_equal "Ruby on Rails", fixture(:web_sites, :rubyonrails).name
+    ```
+
+    *Jean Boussier*
+
+*   Using `Model.query_constraints` with a single non-primary-key column used to raise as expected, but with an
+    incorrect error message. This has been fixed to raise with a more appropriate error message.
+
+    *Joshua Young*
+
 *   Fix `has_one` association autosave setting the foreign key attribute when it is unchanged.
 
     This behaviour is also inconsistent with autosaving `belongs_to` and can have unintended side effects like raising
@@ -207,7 +410,7 @@
 
     *Hartley McGuire*
 
-*   Add `active_record.config.validate_migration_timestamps` option for validating migration timestamps.
+*   Add `config.active_record.validate_migration_timestamps` option for validating migration timestamps.
 
     When set, validates that the timestamp prefix for a migration is no more than a day ahead of
     the timestamp associated with the current time. This is designed to prevent migrations prefixes

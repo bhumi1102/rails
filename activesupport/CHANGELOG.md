@@ -1,3 +1,26 @@
+*   Support `hexBinary` type in `ActiveSupport::XmlMini`.
+
+    *heka1024*
+
+*   Deprecate `ActiveSupport::ProxyObject` in favor of Ruby's buildin `BasicObject`
+
+    *Earlopain*
+
+*   `stub_const` now accepts a `exists: false` parameter to allow stubbing missing constants.
+
+    *Jean Boussier*
+
+*   Make ActiveSupport::BacktraceCleaner copy filters and silencers on dup and clone
+
+    Previously the copy would still share the internal silencers and filters array,
+    causing state to leak.
+
+    *Jean Boussier*
+
+*   Updating Astana with Western Kazakhstan TZInfo identifier
+
+    *Damian Nelson*
+
 *   Add filename support for `ActiveSupport::Logger.logger_outputs_to?`
 
     ```ruby

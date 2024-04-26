@@ -83,8 +83,8 @@ module ActiveRecord
       end
     end
 
-    def create_fixtures(*fixture_set_names, &block)
-      ActiveRecord::FixtureSet.create_fixtures(ActiveRecord::TestCase.fixture_paths, fixture_set_names, fixture_class_names, &block)
+    def create_fixtures(*fixture_set_names)
+      ActiveRecord::FixtureSet.create_fixtures(ActiveRecord::TestCase.fixture_paths, fixture_set_names, fixture_class_names)
     end
 
     def capture_sql(include_schema: false)
@@ -170,13 +170,13 @@ module ActiveRecord
       ActiveRecord.db_warnings_action = action
       ActiveRecord.db_warnings_ignore = warnings_to_ignore
 
-      ActiveRecord::Base.connection.disconnect! # Disconnect from the db so that we reconfigure the connection
+      ActiveRecord::Base.lease_connection.disconnect! # Disconnect from the db so that we reconfigure the connection
 
       yield
     ensure
       ActiveRecord.db_warnings_action = @original_db_warnings_action
       ActiveRecord.db_warnings_ignore = original_db_warnings_ignore
-      ActiveRecord::Base.connection.disconnect!
+      ActiveRecord::Base.lease_connection.disconnect!
     end
 
     def reset_callbacks(klass, kind)

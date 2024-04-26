@@ -38,6 +38,7 @@ module RailsGuides
 
     def generate
       generate_guides
+      process_scss
       copy_assets
       generate_epub if @epub
     end
@@ -105,8 +106,16 @@ module RailsGuides
         end
       end
 
+      def process_scss
+        system "bundle exec dartsass \
+          #{@guides_dir}/assets/stylesrc/style.scss:#{@output_dir}/stylesheets/style.css \
+          #{@guides_dir}/assets/stylesrc/highlight.scss:#{@output_dir}/stylesheets/highlight.css \
+          #{@guides_dir}/assets/stylesrc/print.scss:#{@output_dir}/stylesheets/print.css"
+      end
+
       def copy_assets
-        FileUtils.cp_r(Dir.glob("#{@guides_dir}/assets/*"), @output_dir)
+        source_files = Dir.glob("#{@guides_dir}/assets/*").reject { |name| name.include?("stylesrc") }
+        FileUtils.cp_r(source_files, @output_dir)
       end
 
       def output_file_for(guide)

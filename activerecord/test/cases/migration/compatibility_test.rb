@@ -15,7 +15,7 @@ module ActiveRecord
 
       def setup
         super
-        @connection = ActiveRecord::Base.connection
+        @connection = ActiveRecord::Base.lease_connection
         @pool = ActiveRecord::Base.connection_pool
         @schema_migration = @pool.schema_migration
         @internal_metadata = @pool.internal_metadata
@@ -114,7 +114,7 @@ module ActiveRecord
         assert connection.column_exists?(:testings, :updated_at, null: true)
       end
 
-      if ActiveRecord::Base.connection.supports_bulk_alter?
+      if ActiveRecord::Base.lease_connection.supports_bulk_alter?
         def test_timestamps_have_null_constraints_if_not_present_in_migration_of_change_table_with_bulk
           migration = Class.new(ActiveRecord::Migration[4.2]) {
             def migrate(x)
@@ -176,7 +176,7 @@ module ActiveRecord
         assert connection.column_exists?(:testings, :updated_at, null: false, **precision_implicit_default)
       end
 
-      if ActiveRecord::Base.connection.supports_bulk_alter?
+      if ActiveRecord::Base.lease_connection.supports_bulk_alter?
         def test_timestamps_doesnt_set_precision_on_change_table_with_bulk
           migration = Class.new(ActiveRecord::Migration[5.2]) {
             def migrate(x)
@@ -227,7 +227,7 @@ module ActiveRecord
         end
       end
 
-      if ActiveRecord::Base.connection.supports_comments?
+      if ActiveRecord::Base.lease_connection.supports_comments?
         def test_change_column_comment_can_be_reverted
           migration = Class.new(ActiveRecord::Migration[5.2]) {
             def migrate(x)
@@ -418,6 +418,27 @@ module ActiveRecord
         assert_match(/is too long/i, error.message)
       ensure
         connection.drop_table :more_testings rescue nil
+      end
+
+      def test_rename_table_errors_on_too_long_index_name_7_0
+        long_table_name = "a" * connection.table_name_length
+
+        migration = Class.new(ActiveRecord::Migration[7.0]) {
+          def migrate(x)
+            add_index :testings, :foo
+            long_table_name = "a" * connection.table_name_length
+            rename_table :testings, long_table_name
+          end
+        }.new
+
+        error = assert_raises(StandardError) do
+          ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
+        end
+
+        assert_match(/index_#{long_table_name}_on_foo/i, error.message)
+        assert_match(/is too long/i, error.message)
+      ensure
+        connection.drop_table long_table_name, if_exists: true
       end
 
       if current_adapter?(:Mysql2Adapter, :TrilogyAdapter)
@@ -620,7 +641,7 @@ module ActiveRecord
 
           ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
 
-          foreign_keys = Testing.connection.foreign_keys("sub_testings")
+          foreign_keys = Testing.lease_connection.foreign_keys("sub_testings")
           assert_equal 1, foreign_keys.size
           assert_equal :immediate, foreign_keys.first.deferrable
         ensure
@@ -828,7 +849,7 @@ class BaseCompatibilityTest < ActiveRecord::TestCase
   attr_reader :connection
 
   def setup
-    @connection = ActiveRecord::Base.connection
+    @connection = ActiveRecord::Base.lease_connection
     @pool = ActiveRecord::Base.connection_pool
     @schema_migration = @pool.schema_migration
     @internal_metadata = @pool.internal_metadata
@@ -917,7 +938,7 @@ module LegacyPolymorphicReferenceIndexTestCases
   attr_reader :connection
 
   def setup
-    @connection = ActiveRecord::Base.connection
+    @connection = ActiveRecord::Base.lease_connection
     @pool = ActiveRecord::Base.connection_pool
     @schema_migration = @pool.schema_migration
     @internal_metadata = @pool.internal_metadata
