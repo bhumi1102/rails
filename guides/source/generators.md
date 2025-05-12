@@ -41,6 +41,12 @@ option. For example:
 $ bin/rails generate scaffold --help
 ```
 
+You can also use the short syntax to call the `generate` command:
+
+```bash
+$ bin/rails g scaffold --help
+```
+
 Creating Your First Generator
 -----------------------------
 
@@ -450,6 +456,8 @@ Creating Application Templates
 ------------------------------
 
 Application templates are a little different from generators. While generators add files to an existing Rails application (models, views, etc.), templates are used to automate the setup of a new Rails application. Templates are written as a Ruby script.
+
+Templates automate what a developer would normally do after creating a clean app. All of these actions can be performed by a template. This way, another developer who uses your template to create an app, will get the app you envisioned.
 
 Let's see how to use a template while creating a new Rails application and also an example of a template Ruby script.
 
