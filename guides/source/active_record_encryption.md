@@ -3,7 +3,7 @@
 Active Record Encryption
 ========================
 
-This guide covers encrypting your database information using Active Record.
+This guide covers how to encrypt data in your database using Active Record.
 
 After reading this guide, you will know:
 
@@ -11,30 +11,33 @@ After reading this guide, you will know:
 * How to migrate unencrypted data.
 * How to make different encryption schemes coexist.
 * How to use the API.
-* How to configure the library and how to extend it.
 
 --------------------------------------------------------------------------------
 
-Active Record supports application-level encryption. It works by declaring which attributes should be encrypted and seamlessly encrypting and decrypting them when necessary. The encryption layer sits between the database and the application. The application will access unencrypted data, but the database will store it encrypted.
+Active Record Encryption exists to protect sensitive information in your application, such as personally identifying information about your users. Active Record supports application-level encryption by allowing you to declare which attributes should be encrypted. It enables transparent encryption and decryption of attributes when saving and retrieving data. The encryption layer sits between the application and the database.
 
 ## Why Encrypt Data at the Application Level?
 
-Active Record Encryption exists to protect sensitive information in your application. A typical example is personally identifiable information from users. But why would you want application-level encryption if you are already encrypting your database at rest?
+Encrypting specific attributes at the application-level adds an additional security layer. For example, if someone gains access to your application logs or database backup, the encrypted data remains unreadable. It also helps avoid accidental exposure of sensitive information in your application console or logs.
 
-As an immediate practical benefit, encrypting sensitive attributes adds an additional security layer. For example, if an attacker gained access to your database, a snapshot of it, or your application logs, they wouldn't be able to make sense of the encrypted information. Additionally, encryption can prevent developers from unintentionally exposing users' sensitive data in application logs.
+Most importantly, this feature lets you explicitly define what data is sensitive in your code. This enables precise access control throughout your application and any connected services. For example, you can use tools like [console1984](https://github.com/basecamp/console1984) to restrict decrypted data access in Rails consoles. You can also take advantage of automatic [parameter filtering](#filtering-params-named-as-encrypted-columns) for encrypted fields.
 
-But more importantly, by using Active Record Encryption, you define what constitutes sensitive information in your application at the code level. Active Record Encryption enables granular control of data access in your application and services consuming data from your application. For example, consider [auditable Rails consoles that protect encrypted data](https://github.com/basecamp/console1984) or check the built-in system to [filter controller params automatically](#filtering-params-named-as-encrypted-columns).
+## Setup
 
-## Basic Usage
+To start using Active Record Encryption, you need to generate keys and declare attributes you want to encrypt in the Model.
 
-### Setup
+### Generate Encryption Key
 
-Run `bin/rails db:encryption:init` to generate a random key set:
+You can generate a random key set by running `bin/rails db:encryption:init`:
 
 ```bash
 $ bin/rails db:encryption:init
-Add this entry to the credentials of the target environment:
+```
 
+Then, add the keys to the credentials file of the target environment:
+
+```yml
+# config/credentials.yml
 active_record_encryption:
   primary_key: EGY8WhulUOXixybod7ZWwMIL68R9o5kC
   deterministic_key: aPA5XyALhf75NNnMzaspW7akTfZp0lPY
@@ -51,32 +54,60 @@ config.active_record.encryption.key_derivation_salt = ENV["ACTIVE_RECORD_ENCRYPT
 
 NOTE: These generated values are 32 bytes in length. If you generate these yourself, the minimum lengths you should use are 12 bytes for the primary key (this will be used to derive the AES 32 bytes key) and 20 bytes for the salt.
 
-### Declaration of Encrypted Attributes
+Once the keys are generated and stored, you can start using Active Record Encryption by declaring attributes to be encrypted.
 
-Encryptable attributes are defined at the model level. These are regular Active Record attributes backed by a column with the same name.
+### Declare Encrypted Attributes
+
+The `encrypts` method defines attribute to be encrypted at the model level. These are regular Active Record attributes backed by a column with the same name.
 
 ```ruby
 class Article < ApplicationRecord
   encrypts :title
 end
-````
+```
 
-The library will transparently encrypt these attributes before saving them in the database and will decrypt them upon retrieval:
+Active Record Encryption library will transparently encrypt these attributes before saving them to the database and will decrypt them upon retrieval. For example,
 
 ```ruby
 article = Article.create title: "Encrypt it all!"
 article.title # => "Encrypt it all!"
 ```
 
-But, under the hood, the executed SQL looks like this:
+However, in the Rails console, the executed SQL looks like this:
 
 ```sql
 INSERT INTO `articles` (`title`) VALUES ('{\"p\":\"n7J0/ol+a7DRMeaE\",\"h\":{\"iv\":\"DXZMDWUKfp3bg/Yu\",\"at\":\"X1/YjMHbHD4talgF9dt61A==\"}}')
 ```
 
-#### Important: About Storage and Column Size
+### Querying Encrypted Data: Deterministic vs. Non-deterministic Encryption
 
-Encryption requires extra space because of Base64 encoding and the metadata stored along with the encrypted payloads. When using the built-in envelope encryption key provider, you can estimate the worst-case overhead at around 255 bytes. This overhead is negligible at larger sizes. Not only because it gets diluted but because the library uses compression by default, which can offer up to 30% storage savings over the unencrypted version for larger payloads.
+By default, Active Record Encryption is non-deterministic, which means that encrypting the same value with the same key twice will result in *different* encrypted values (aka ciphertexts). The non-deterministic approach improves security by making crypto-analysis of ciphertexts harder.  However, it makes querying the database impossible.
+
+If you need to able to query the encrypted `email` field on the `Author` model below, you can use deterministic encryption:
+
+```ruby
+class Author < ApplicationRecord
+  encrypts :email, deterministic: true
+end
+
+# You can query the email only if using deterministic encryption.
+Author.find_by_email("tolkien@email.com")
+```
+
+The `deterministic:` option generates initialization vectors in a deterministic way, meaning it will produce the same encrypted output given the same input value. This makes querying encrypted attributes possible, like the `email` above.
+
+The `:deterministic` option allows for querying by trading off lesser security. The data is still encrypted but the determinism makes crypto-analysis easier. For this reason, non-deterministic encryption is recommended for all data unless you need to query the attributes.
+
+NOTE: In non-deterministic mode, Active Record uses AES-GCM with a 256-bits key and a random initialization vector. In deterministic mode, it also uses AES-GCM, but the initialization vector is generated as an HMAC-SHA-256 digest of the key and contents to encrypt.
+
+NOTE: You can disable deterministic encryption by omitting the `deterministic_key`.
+
+TODO: more advanced, move to a later section?
+### Column Size and Storage Consideration
+
+Encryption requires extra space because the encrypted value will be larger than the original value (due to the Base64 encoding and the metadata stored along with the encrypted payloads).
+
+When using the built-in envelope encryption key provider, you can estimate the overhead to be around 255 bytes. This overhead is negligible at larger sizes. Not only because it gets diluted but because the library uses compression by default, which can offer up to 30% storage savings over the unencrypted version for larger payloads.
 
 There is an important concern about string column sizes: in modern databases the column size determines the *number of characters* it can allocate, not the number of bytes. For example, with UTF-8, each character can take up to four bytes, so, potentially, a column in a database using UTF-8 can store up to four times its size in terms of *number of bytes*. Now, encrypted payloads are binary strings serialized as Base64, so they can be stored in regular `string` columns. Because they are a sequence of ASCII bytes, an encrypted column can take up to four times its clear version size. So, even if the bytes stored in the database are the same, the column must be four times bigger.
 
@@ -95,27 +126,30 @@ Some examples:
 | Summary of texts written in non-western alphabets | string(500)          | string(2000)                      | 255 bytes                     |
 | Arbitrary long text                               | text                 | text                              | negligible                    |
 
-### Deterministic and Non-deterministic Encryption
+## Basic Usage
 
-By default, Active Record Encryption uses a non-deterministic approach to encryption. Non-deterministic, in this context, means that encrypting the same content with the same password twice will result in different ciphertexts. This approach improves security by making crypto-analysis of ciphertexts harder, and querying the database impossible.
+### Using the API
 
-You can use the `deterministic:`  option to generate initialization vectors in a deterministic way, effectively enabling querying encrypted data.
+ActiveRecord encryption is meant to be used declaratively, but there is also an API for debugging or advance use cases.
+
+You can encrypt and decrypt all relevant attributes of the `article` model like this:
 
 ```ruby
-class Author < ApplicationRecord
-  encrypts :email, deterministic: true
-end
-
-Author.find_by_email("some@email.com") # You can query the model normally
+article.encrypt # encrypt or re-encrypt all the encryptable attributes
+article.decrypt # decrypt all the encryptable attributes
 ```
 
-The non-deterministic approach is recommended unless you need to query the data.
+You can check whether a given attribute is encrypted:
 
-NOTE: In non-deterministic mode, Active Record uses AES-GCM with a 256-bits key and a random initialization vector. In deterministic mode, it also uses AES-GCM, but the initialization vector is generated as an HMAC-SHA-256 digest of the key and contents to encrypt.
+```ruby
+article.encrypted_attribute?(:title)
+```
 
-NOTE: You can disable deterministic encryption by omitting a `deterministic_key`.
+You can read the `cipertext` for an attribute:
 
-## Features
+```ruby
+article.ciphertext_for(:title)
+```
 
 ### Action Text
 
@@ -143,7 +177,7 @@ When enabled, all the encryptable attributes will be encrypted according to the 
 
 To encrypt Action Text fixtures, you should place them in `fixtures/action_text/encrypted_rich_texts.yml`.
 
-### Supported Types
+### Serialized Attributes
 
 `active_record.encryption` will serialize values using the underlying type before encrypting them, but, unless using a custom `message_serializer`, *they must be serializable as strings*. Structured types like `serialized` are supported out of the box.
 
@@ -182,56 +216,6 @@ class Label
   encrypts :name, deterministic: true, ignore_case: true # the content with the original case will be stored in the column `original_name`
 end
 ```
-
-### Support for Unencrypted Data
-
-To ease migrations of unencrypted data, the library includes the option `config.active_record.encryption.support_unencrypted_data`. When set to `true`:
-
-* Trying to read encrypted attributes that are not encrypted will work normally, without raising any error.
-* Queries with deterministically-encrypted attributes will include the "clear text" version of them to support finding both encrypted and unencrypted content. You need to set `config.active_record.encryption.extend_queries = true` to enable this.
-
-**This option is meant to be used during transition periods** while clear data and encrypted data must coexist. Both are set to `false` by default, which is the recommended goal for any application: errors will be raised when working with unencrypted data.
-
-### Support for Previous Encryption Schemes
-
-Changing encryption properties of attributes can break existing data. For example, imagine you want to make a deterministic attribute non-deterministic. If you just change the declaration in the model, reading existing ciphertexts will fail because the encryption method is different now.
-
-To support these situations, you can declare previous encryption schemes that will be used in two scenarios:
-
-* When reading encrypted data, Active Record Encryption will try previous encryption schemes if the current scheme doesn't work.
-* When querying deterministic data, it will add ciphertexts using previous schemes so that queries work seamlessly with data encrypted with different schemes. You must set `config.active_record.encryption.extend_queries = true` to enable this.
-
-You can configure previous encryption schemes:
-
-* Globally
-* On a per-attribute basis
-
-#### Global Previous Encryption Schemes
-
-You can add previous encryption schemes by adding them as list of properties using the `previous` config property in your `application.rb`:
-
-```ruby
-config.active_record.encryption.previous = [ { key_provider: MyOldKeyProvider.new } ]
-```
-
-#### Per-attribute Encryption Schemes
-
-Use `:previous` when declaring the attribute:
-
-```ruby
-class Article
-  encrypts :title, deterministic: true, previous: { deterministic: false }
-end
-```
-
-#### Encryption Schemes and Deterministic Attributes
-
-When adding previous encryption schemes:
-
-* With **non-deterministic encryption**, new information will always be encrypted with the *newest* (current) encryption scheme.
-* With **deterministic encryption**, new information will always be encrypted with the *oldest* encryption scheme by default.
-
-Typically, with deterministic encryption, you want ciphertexts to remain constant. You can change this behavior by setting `deterministic: { fixed: false }`. In that case, it will use the *newest* encryption scheme for encrypting new data.
 
 ### Unique Constraints
 
@@ -333,6 +317,58 @@ You can configure the compressor globally:
 ```ruby
 config.active_record.encryption.compressor = ZstdCompressor
 ```
+
+## Migrating Existing Data
+
+### Support for Unencrypted Data
+
+To ease migrations of unencrypted data, the library includes the option `config.active_record.encryption.support_unencrypted_data`. When set to `true`:
+
+* Trying to read encrypted attributes that are not encrypted will work normally, without raising any error.
+* Queries with deterministically-encrypted attributes will include the "clear text" version of them to support finding both encrypted and unencrypted content. You need to set `config.active_record.encryption.extend_queries = true` to enable this.
+
+**This option is meant to be used during transition periods** while clear data and encrypted data must coexist. Both are set to `false` by default, which is the recommended goal for any application: errors will be raised when working with unencrypted data.
+
+### Support for Previous Encryption Schemes
+
+Changing encryption properties of attributes can break existing data. For example, imagine you want to make a deterministic attribute non-deterministic. If you just change the declaration in the model, reading existing ciphertexts will fail because the encryption method is different now.
+
+To support these situations, you can declare previous encryption schemes that will be used in two scenarios:
+
+* When reading encrypted data, Active Record Encryption will try previous encryption schemes if the current scheme doesn't work.
+* When querying deterministic data, it will add ciphertexts using previous schemes so that queries work seamlessly with data encrypted with different schemes. You must set `config.active_record.encryption.extend_queries = true` to enable this.
+
+You can configure previous encryption schemes:
+
+* Globally
+* On a per-attribute basis
+
+#### Global Previous Encryption Schemes
+
+You can add previous encryption schemes by adding them as list of properties using the `previous` config property in your `application.rb`:
+
+```ruby
+config.active_record.encryption.previous = [ { key_provider: MyOldKeyProvider.new } ]
+```
+
+#### Per-attribute Encryption Schemes
+
+Use `:previous` when declaring the attribute:
+
+```ruby
+class Article
+  encrypts :title, deterministic: true, previous: { deterministic: false }
+end
+```
+
+#### Encryption Schemes and Deterministic Attributes
+
+When adding previous encryption schemes:
+
+* With **non-deterministic encryption**, new information will always be encrypted with the *newest* (current) encryption scheme.
+* With **deterministic encryption**, new information will always be encrypted with the *oldest* encryption scheme by default.
+
+Typically, with deterministic encryption, you want ciphertexts to remain constant. You can change this behavior by setting `deterministic: { fixed: false }`. In that case, it will use the *newest* encryption scheme for encrypting new data.
 
 ## Key Management
 
@@ -444,31 +480,6 @@ config.active_record.encryption.store_key_references = true
 ```
 
 Doing so makes for more performant decryption because the system can now locate keys directly instead of trying lists of keys. The price to pay is storage: encrypted data will be a bit bigger.
-
-## API
-
-### Basic API
-
-ActiveRecord encryption is meant to be used declaratively, but it offers an API for advanced usage scenarios.
-
-#### Encrypt and Decrypt
-
-```ruby
-article.encrypt # encrypt or re-encrypt all the encryptable attributes
-article.decrypt # decrypt all the encryptable attributes
-```
-
-#### Read Ciphertext
-
-```ruby
-article.ciphertext_for(:title)
-```
-
-#### Check if Attribute is Encrypted or Not
-
-```ruby
-article.encrypted_attribute?(:title)
-```
 
 ## Configuration
 
