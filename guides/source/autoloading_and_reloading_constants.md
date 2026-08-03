@@ -7,11 +7,11 @@ This guide documents how autoloading and reloading works in `zeitwerk` mode.
 
 After reading this guide, you will know:
 
-* Related Rails configuration
-* Project structure
-* Autoloading, reloading, and eager loading
-* Single Table Inheritance
-* And more
+* The difference between autoloading, reloading, and eager loading
+* Configuration options and directory structure for autoloading
+* The difference between the *main* and *once* autoloaders 
+* Options for allowing Single Table Inheritance to work with autoloading
+* How to troubleshoot autoloading
 
 --------------------------------------------------------------------------------
 
@@ -286,7 +286,8 @@ if `User` is reloaded, since `VipUser` is not, the superclass of `VipUser` is th
 
 Bottom line: **do not cache reloadable classes or modules**.
 
-## Autoloading When the Application Boots
+Autoloading When the Application Boots
+--------------------------------------
 
 While booting, applications can autoload from the autoload once paths, which are managed by the `once` autoloader. Please check the section [`config.autoload_once_paths`](#config-autoload-once-paths) above.
 
@@ -425,8 +426,8 @@ During eager loading, Rails invokes `Zeitwerk::Loader.eager_load_all`. That ensu
 [`config.eager_load`]: configuring.html#config-eager-load
 [`config.rake_eager_load`]: configuring.html#config-rake-eager-load
 
-Single Table Inheritance
-------------------------
+Loading Constants to Allow Single Table Inheritance
+---------------------------------------------------
 
 Single Table Inheritance doesn't play well with lazy loading: Active Record has to be aware of STI hierarchies to work correctly, but when lazy loading, classes are precisely loaded only on demand!
 
@@ -513,8 +514,8 @@ WARNING: The STI will work correctly even if the table does not have all the typ
 
 WARNING: If models are added, modified, or deleted from the STI, reloading works as expected. However, if a new separate STI hierarchy is added to the application, you'll need to edit the initializer and restart the server.
 
-Customizing Inflections
------------------------
+Customizing File Names and Defined Constants
+--------------------------------------------
 
 By default, Rails uses `String#camelize` to know which constant a given file or directory name should define. For example, `posts_controller.rb` should define `PostsController` because that is what `"posts_controller".camelize` returns.
 
