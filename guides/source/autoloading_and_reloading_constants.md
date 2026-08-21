@@ -18,13 +18,12 @@ After reading this guide, you will know:
 What is Autoloading?
 --------------------
 
-In an ordinary Ruby program, you explicitly load the files that define classes and modules you want to use. For example, the following controller refers to `ApplicationController` and `Post`, and you'd normally issue `require` calls for them:
+In an ordinary Ruby program, you explicitly load the files that define classes and modules you want to use. For example, the `PostsController` class below refers to `ApplicationController` and `Post` so you would need to call `require` to before using them:
 
 ```ruby
-# DO NOT DO THIS.
+# Do NOT do this in Rails
 require "application_controller"
 require "post"
-# DO NOT DO THIS.
 
 class PostsController < ApplicationController
   def index
@@ -33,7 +32,7 @@ class PostsController < ApplicationController
 end
 ```
 
-This is not the case in Rails applications, where application classes and modules are available everywhere without `require` calls:
+In a Rails application, however, classes and modules are automatically loaded so you do not need the explicit `require` calls.
 
 ```ruby
 class PostsController < ApplicationController
@@ -43,9 +42,17 @@ class PostsController < ApplicationController
 end
 ```
 
-Rails _autoloads_ them on your behalf if needed. This is possible thanks to a couple of [Zeitwerk](https://github.com/fxn/zeitwerk) loaders Rails sets up on your behalf, which provide autoloading, reloading, and eager loading.
+This is possible thanks to the [Zeitwerk](https://github.com/fxn/zeitwerk)
+library, which sets up loaders in your Rails application that provide
+autoloading, reloading, and eager loading. 
 
-Those loaders do not manage anything else. In particular, they do not manage the Ruby standard library, gem dependencies, Rails components themselves, or even (by default) the application `lib` directory. That code has to be loaded as usual.
+Autoloading, reloading, and eager loading are three different answers to the question of when should the constants get loaded: on first reference (autoloading), all at once during boot (eager loading), or again after a file changes (reloading).
+
+The Zeitwerk loaders manage the code in your application's autoload path, which
+by default, is the subdirectories of `app`. They do _not_ manage the Ruby
+standard library, gem dependencies, the Rails components themselves, and by
+default the application `lib` directory. That code has to be loaded as usual,
+with `require`.
 
 ### Directory Structure
 -----------------------
