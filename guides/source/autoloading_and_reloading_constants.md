@@ -15,10 +15,8 @@ After reading this guide, you will know:
 
 --------------------------------------------------------------------------------
 
-Introduction
-------------
-
-INFO. This guide documents autoloading, reloading, and eager loading in Rails applications.
+What is Autoloading?
+--------------------
 
 In an ordinary Ruby program, you explicitly load the files that define classes and modules you want to use. For example, the following controller refers to `ApplicationController` and `Post`, and you'd normally issue `require` calls for them:
 
@@ -35,7 +33,7 @@ class PostsController < ApplicationController
 end
 ```
 
-This is not the case in Rails applications, where application classes and modules are just available everywhere without `require` calls:
+This is not the case in Rails applications, where application classes and modules are available everywhere without `require` calls:
 
 ```ruby
 class PostsController < ApplicationController
@@ -47,11 +45,10 @@ end
 
 Rails _autoloads_ them on your behalf if needed. This is possible thanks to a couple of [Zeitwerk](https://github.com/fxn/zeitwerk) loaders Rails sets up on your behalf, which provide autoloading, reloading, and eager loading.
 
-On the other hand, those loaders do not manage anything else. In particular, they do not manage the Ruby standard library, gem dependencies, Rails components themselves, or even (by default) the application `lib` directory. That code has to be loaded as usual.
+Those loaders do not manage anything else. In particular, they do not manage the Ruby standard library, gem dependencies, Rails components themselves, or even (by default) the application `lib` directory. That code has to be loaded as usual.
 
-
-Project Structure
------------------
+### Directory Structure
+-----------------------
 
 In a Rails application, file names have to match the constants they define, with directories acting as namespaces.
 
@@ -59,9 +56,7 @@ For example, the file `app/helpers/users_helper.rb` should define `UsersHelper` 
 
 By default, Rails configures Zeitwerk to inflect file names with `String#camelize`. For example, it expects that `app/controllers/users_controller.rb` defines the constant `UsersController` because that is what `"users_controller".camelize` returns.
 
-The section _Customizing Inflections_ below documents ways to override this default.
-
-Please, check the [Zeitwerk documentation](https://github.com/fxn/zeitwerk#file-structure) for further details.
+The section [Customizing Inflections](#customizing-file-names-and-defined-constants) below documents ways to override this default. For more details, see [Zeitwerk documentation](https://github.com/fxn/zeitwerk#file-structure).
 
 config.autoload_paths
 ---------------------
