@@ -143,28 +143,39 @@ WARNING: You cannot autoload code in the autoload paths while the application bo
 TODO: find a good place to constract "main" and "once" autoloaders and explain the difference.
 The autoload paths are managed by the `Rails.autoloaders.main` autoloader.
 
-config.autoload_lib(ignore:) --> Autoloading `/lib`
-----------------------------
+Autoloading `/lib`
+-----------------
 
-By default, the `lib` directory does not belong to the autoload paths of applications or engines.
-
-The configuration method `config.autoload_lib` adds the `lib` directory to `config.autoload_paths` and `config.eager_load_paths`. It has to be invoked from `config/application.rb` or `config/environments/*.rb`, and it is not available for engines.
-
-Normally, `lib` has subdirectories that should not be managed by the autoloaders. Please, pass their name relative to `lib` in the required `ignore` keyword argument. For example:
+By default, the `lib` directory is not in the autoload paths of applications or engines. The configuration method `config.autoload_lib` adds the `lib` directory to `config.autoload_paths` and `config.eager_load_paths`. It can be invoked from `config/application.rb` or `config/environments/*.rb`:
 
 ```ruby
-config.autoload_lib(ignore: %w(assets tasks))
+# config/application.rb
+module MyApp
+  class Application < Rails::Application
+    config.autoload_lib(ignore: %w(assets tasks))
+  end
+end
 ```
 
-Why? While `assets` and `tasks` share the `lib` directory with regular Ruby code, their contents are not meant to be reloaded or eager loaded.
+With that in place, `lib` follows the same naming convention as the rest of your
+application: `lib/payment_gateway.rb` defines `PaymentGateway`, and no `require`
+call is needed to use it.
 
-The `ignore` list should have all `lib` subdirectories that do not contain files with `.rb` extension, or that should not be reloaded or eager loaded. For example,
+The `lib` directory may have subdirectories that should not be managed by the autoloaders. You can pass their name relative to `lib` in the required `ignore` keyword argument, as shown above `ignore: %w(assets tasks)`.
+
+The reason it makes sense to ignore those directories is because the autoloaders
+expect every `.rb` file they manage to define a constant matching its name. Rake
+tasks in `lib/tasks` define no constants at all, and they are meant to run once
+when invoked, not to be loaded on boot. And `lib/assets` typically holds no Ruby
+at all.
+
+The `ignore` list should have all `lib` subdirectories that do not contain files with `.rb` extension, or that should not be reloaded or eager loaded. A complete ignore list may look like this:
 
 ```ruby
 config.autoload_lib(ignore: %w(assets tasks templates generators middleware))
 ```
 
-`config.autoload_lib` is not available before 7.1, but you can still emulate it as long as the application uses Zeitwerk:
+Note that the `config.autoload_lib` is not available before Rails version 7.1, but you can emulate it, as shown below, as long as the application uses Zeitwerk:
 
 ```ruby
 # config/application.rb
@@ -644,6 +655,8 @@ Custom namespaces are also supported for the `once` autoloader. However, since t
 
 Autoloading and Engines
 -----------------------
+
+Todo: add that config.autoload_lib is not available for engines.
 
 Engines run in the context of a parent application, and their code is autoloaded, reloaded, and eager loaded by the parent application. If the application runs in `zeitwerk` mode, the engine code is loaded by `zeitwerk` mode. If the application runs in `classic` mode, the engine code is loaded by `classic` mode.
 
