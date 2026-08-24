@@ -15,10 +15,20 @@ After reading this guide, you will know:
 
 --------------------------------------------------------------------------------
 
-What is Autoloading?
---------------------
+Introduction
+------------
 
-In an ordinary Ruby program, you explicitly load the files that define classes and modules you want to use. For example, the `PostsController` class below refers to `ApplicationController` and `Post` so you would need to call `require` to before using them:
+In order to understand what autoloading works and why autoloading exists in Rails, it is useful to understand the following about Ruby: 
+
+In Ruby, the name of a class or module is a constant. Furthermore, there is no
+inherent relationship between a file's name and the constants it defines.
+Nothing connects the file `user.rb` to the constant `User`.
+
+That means an ordinary Ruby program has to load files explicitly before using
+the constants they define. When Ruby executes a `require` call, whatever classes
+or modules the given file defines come into existence. For example, the
+`PostsController` class below refers to `ApplicationController` and `Post` so
+you would need to call `require` to add them (if this was an ordinary Ruby program):
 
 ```ruby
 # Do NOT do this in Rails
@@ -32,7 +42,7 @@ class PostsController < ApplicationController
 end
 ```
 
-In a Rails application, however, classes and modules are automatically loaded so you do not need the explicit `require` calls.
+However, as you've likely seen, there are no explicit `require` calls in a Rails controller. Classes and modules are automatically loaded and available in a Rails application without a `require`:
 
 ```ruby
 class PostsController < ApplicationController
@@ -44,24 +54,30 @@ end
 
 This is possible thanks to the [Zeitwerk](https://github.com/fxn/zeitwerk)
 library, which sets up loaders in your Rails application that provide
-autoloading, reloading, and eager loading. 
+autoloading (as well as reloading and eager loading).
+
+NOTE: Zeitwerk is a dependency of Active Support, so it is present in every
+Rails application and automatically set up and initialized during the boot process.
+
+### What is Autoloading?
 
 Autoloading, reloading, and eager loading are three different answers to the question of when should the constants get loaded: on first reference (autoloading), all at once during boot (eager loading), or again after a file changes (reloading).
 
 The Zeitwerk loaders manage the code in your application's autoload path, which
-by default, is the subdirectories of `app`. They do _not_ manage the Ruby
-standard library, gem dependencies, the Rails components themselves, and by
-default the application `lib` directory. That code has to be loaded as usual,
-with `require`.
+by default, is all subdirectories of `app` directory. 
 
-### Directory Structure
------------------------
+NOTE: Zeitwerk loaders do _not_ manage the Ruby standard library, gem
+dependencies, the Rails components themselves, and by default the application
+`lib` directory. That code has to be loaded as usual, with `require`.
 
-In a Rails application, file names have to match the constants they define, with directories acting as namespaces.
+### Directory Structure and File Names
 
-For example, the file `app/helpers/users_helper.rb` should define `UsersHelper` and the file `app/controllers/admin/payments_controller.rb` should define `Admin::PaymentsController`.
+In a Rails application, by convention, file names have to match the constants they define, with directories acting as namespaces. For example:
 
-By default, Rails configures Zeitwerk to inflect file names with `String#camelize`. For example, it expects that `app/controllers/users_controller.rb` defines the constant `UsersController` because that is what `"users_controller".camelize` returns.
+- file `app/helpers/users_helper.rb` should define `UsersHelper`
+- file `app/controllers/admin/payments_controller.rb` should define `Admin::PaymentsController`.
+
+Rails configures Zeitwerk to infer file names using the [`String#camelize`](https://api.rubyonrails.org/classes/String.html#method-i-camelize) method. For example, it expects that `app/controllers/users_controller.rb` defines the constant `UsersController` because that is what `"users_controller".camelize` returns.
 
 The section [Customizing Inflections](#customizing-file-names-and-defined-constants) below documents ways to override this default. For more details, see [Zeitwerk documentation](https://github.com/fxn/zeitwerk#file-structure).
 
@@ -286,7 +302,7 @@ end
 
 if `User` is reloaded, since `VipUser` is not, the superclass of `VipUser` is the original stale class object.
 
-Bottom line: **do not cache reloadable classes or modules**.
+WARNING: Do not cache reloadable classes or modules.
 
 Autoloading When the Application Boots
 --------------------------------------
