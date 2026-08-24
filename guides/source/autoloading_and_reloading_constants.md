@@ -86,14 +86,14 @@ In a Rails application (unlike other Ruby programs), file names have to match th
 - file `app/helpers/users_helper.rb` should define `UsersHelper`
 - file `app/controllers/admin/payments_controller.rb` should define `Admin::PaymentsController`.
 
-NOTE: Rails configures Zeitwerk to infer file names using the [`String#camelize`](https://api.rubyonrails.org/classes/String.html#method-i-camelize) method. For example, it expects that `app/controllers/users_controller.rb` defines the constant `UsersController` because that is what `"users_controller".camelize` returns. The section [Customizing Inflections](#customizing-file-names-and-defined-constants) below documents ways to override this default. For more details, see [Zeitwerk documentation](https://github.com/fxn/zeitwerk#file-structure).
+NOTE: Rails configures Zeitwerk to infer file names using the [`String#camelize`](https://api.rubyonrails.org/classes/String.html#method-i-camelize) method. For example, it expects that `app/controllers/users_controller.rb` defines the constant `UsersController` because that is what `"users_controller".camelize` returns. The section [Customizing Inflections](#customizing-file-names-and-defined-constants) below documents ways to override this default.
 
 Because file names carry that information, Rails can determine which file
 defines which constant by its directory and file name.
 
 Rails sets up loaders that build this map from the autoload paths during the
-application's boot process. For each constant, the loaders register an entry
-with Ruby's built-in
+application's boot process. For each constant, the loaders register a lazy-load
+hook with Ruby's built-in
 [`Module#autoload`](https://www.rubydoc.info/stdlib/core/Module:autoload), that
 lists the file defining that constant:
 
@@ -102,19 +102,16 @@ Object.autoload(:User, "#{Rails.root}/app/models/user.rb")
 ```
 
 The first time your application references `User` and finds no such constant
-defined, Rails consults the loader's registered entries, and loads the file
+defined, Zeitwerk consults the loader's registered entries, and loads the file
 (using `require`). This is how autoloading works and is why you do not have to
-write explicit `require` calls for the classes and modules within your Rails
-application.
+write explicit `require` calls for the classes and modules that Zeitwerk manages (aka the autoload paths).
 
-config.autoload_paths --> Adding Autoload Paths
+Adding Autoload Paths
 ---------------------
 
 We refer to the list of application directories whose contents are to be autoloaded and (optionally) reloaded as _autoload paths_. For example, `app/models`. Such directories represent the root namespace: `Object`.
 
 INFO. Autoload paths are called _root directories_ in Zeitwerk documentation, but we'll stay with "autoload path" in this guide.
-
-Within an autoload path, file names must match the constants they define as documented [here](https://github.com/fxn/zeitwerk#file-structure).
 
 By default, the autoload paths of an application consist of all the subdirectories of `app` that exist when the application boots ---except for `assets`, `javascript`, and `views`--- plus the autoload paths of engines it might depend on.
 
@@ -125,7 +122,7 @@ $ bin/rails runner 'p UsersHelper'
 UsersHelper
 ```
 
-Rails adds custom directories under `app` to the autoload paths automatically. For example, if your application has `app/presenters`, you don't need to configure anything in order to autoload presenters; it works out of the box.
+Rails adds custom directories under `app` to the autoload paths automatically. For example, if your application has `app/presenters`, you don't need to configure anything in order to autoload presenters.
 
 The array of default autoload paths can be extended by pushing to `config.autoload_paths`, in `config/application.rb` or `config/environments/*.rb`. For example:
 
@@ -137,12 +134,13 @@ module MyApplication
 end
 ```
 
-Also, engines can push in body of the engine class and in their own `config/environments/*.rb`.
+Also, engines can push in body of the engine class and in their own `config/environments/*.rb`. TODO: add see Engines section below more details on working with Engines with autoloading.
 
 WARNING. Please do not mutate `ActiveSupport::Dependencies.autoload_paths`; the public interface to change autoload paths is `config.autoload_paths`.
 
 WARNING: You cannot autoload code in the autoload paths while the application boots. In particular, directly in `config/initializers/*.rb`. Please check [_Autoloading when the application boots_](#autoloading-when-the-application-boots) down below for valid ways to do that.
 
+TODO: find a good place to constract "main" and "once" autoloaders and explain the difference.
 The autoload paths are managed by the `Rails.autoloaders.main` autoloader.
 
 config.autoload_lib(ignore:) --> Autoloading `/lib`
