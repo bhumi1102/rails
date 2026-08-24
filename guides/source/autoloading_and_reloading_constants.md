@@ -80,31 +80,34 @@ application `lib` directory. That code has to be loaded as usual, with
 
 ### How Autoloading Works
 
-### Directory Structure and File Naming Convention
-
-In a Rails application, by convention, file names have to match the constants they define, with directories acting as namespaces. Autoloading relies on this convention. For example:
+Autoloading relies on the directory structure and file naming convention.
+In a Rails application (unlike other Ruby programs), file names have to match the constants they define, with directories acting as namespaces. For example:
 
 - file `app/helpers/users_helper.rb` should define `UsersHelper`
 - file `app/controllers/admin/payments_controller.rb` should define `Admin::PaymentsController`.
 
 NOTE: Rails configures Zeitwerk to infer file names using the [`String#camelize`](https://api.rubyonrails.org/classes/String.html#method-i-camelize) method. For example, it expects that `app/controllers/users_controller.rb` defines the constant `UsersController` because that is what `"users_controller".camelize` returns. The section [Customizing Inflections](#customizing-file-names-and-defined-constants) below documents ways to override this default. For more details, see [Zeitwerk documentation](https://github.com/fxn/zeitwerk#file-structure).
 
-Because names carry that information, Rails can determine which file defines
-which constant just by listing directories, without opening any of the files.
+Because file names carry that information, Rails can determine which file
+defines which constant by its directory and file name.
 
-At boot, Rails sets up loaders that build this map from the autoload paths. No
-application code is loaded yet — for each constant, the loaders register an
-entry with Ruby's built-in `autoload`, recording which file defines it:
+Rails sets up loaders that build this map from the autoload paths during the
+application's boot process. For each constant, the loaders register an entry
+with Ruby's built-in
+[`Module#autoload`](https://www.rubydoc.info/stdlib/core/Module:autoload), that
+lists the file defining that constant:
 
 ```ruby
 Object.autoload(:User, "#{Rails.root}/app/models/user.rb")
 ```
 
-The first time your code references `User`, Ruby finds no such constant defined,
-consults the entry the loader registered, and loads the file. That is why you
-never write `require` calls for your own classes and modules.
+The first time your application references `User` and finds no such constant
+defined, Rails consults the loader's registered entries, and loads the file
+(using `require`). This is how autoloading works and is why you do not have to
+write explicit `require` calls for the classes and modules within your Rails
+application.
 
-config.autoload_paths
+config.autoload_paths --> Adding Autoload Paths
 ---------------------
 
 We refer to the list of application directories whose contents are to be autoloaded and (optionally) reloaded as _autoload paths_. For example, `app/models`. Such directories represent the root namespace: `Object`.
@@ -142,7 +145,7 @@ WARNING: You cannot autoload code in the autoload paths while the application bo
 
 The autoload paths are managed by the `Rails.autoloaders.main` autoloader.
 
-config.autoload_lib(ignore:)
+config.autoload_lib(ignore:) --> Autoloading `/lib`
 ----------------------------
 
 By default, the `lib` directory does not belong to the autoload paths of applications or engines.
@@ -185,7 +188,7 @@ module MyApp
 end
 ```
 
-config.autoload_once_paths
+config.autoload_once_paths --> Autoloading Without Reloading
 --------------------------
 
 You may want to be able to autoload classes and modules without reloading them. The `autoload_once_paths` configuration stores code that can be autoloaded, but won't be reloaded.
