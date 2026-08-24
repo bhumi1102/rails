@@ -61,25 +61,48 @@ Rails application and automatically set up and initialized during the boot proce
 
 ### What is Autoloading?
 
-Autoloading, reloading, and eager loading are three different answers to the question of when should the constants get loaded: on first reference (autoloading), all at once during boot (eager loading), or again after a file changes (reloading).
+The idea behind autoloading is to load the constants (that represent class and
+module names such as `User`), once they are referenced, and do so automatically
+in the "background" (without an explicit `require` statement).
 
-The Zeitwerk loaders manage the code in your application's autoload path, which
-by default, is all subdirectories of `app` directory. 
+One question to consider is: _when_ should constants be loaded? Autoloading,
+reloading, and eager loading are three different answers to that question: on
+first reference (autoloading), all at once during boot (eager loading), or again
+after a file changes (reloading). See [Eager Loading]() and [Reloading]() for
+more detail on those. We focus on how autoloading works here.
 
-NOTE: Zeitwerk loaders do _not_ manage the Ruby standard library, gem
-dependencies, the Rails components themselves, and by default the application
-`lib` directory. That code has to be loaded as usual, with `require`.
+Another question is: _which_ files are autoloaded? The Zeitwerk loaders manage
+the code in your application's autoload paths, which by default are all
+subdirectories of `app` directory. Zeitwerk loaders do _not_ manage the Ruby
+standard library, gem dependencies, the Rails components themselves, or the
+application `lib` directory. That code has to be loaded as usual, with
+`require`.
 
-### Directory Structure and File Names
+### How Autoloading Works
 
-In a Rails application, by convention, file names have to match the constants they define, with directories acting as namespaces. For example:
+### Directory Structure and File Naming Convention
+
+In a Rails application, by convention, file names have to match the constants they define, with directories acting as namespaces. Autoloading relies on this convention. For example:
 
 - file `app/helpers/users_helper.rb` should define `UsersHelper`
 - file `app/controllers/admin/payments_controller.rb` should define `Admin::PaymentsController`.
 
-Rails configures Zeitwerk to infer file names using the [`String#camelize`](https://api.rubyonrails.org/classes/String.html#method-i-camelize) method. For example, it expects that `app/controllers/users_controller.rb` defines the constant `UsersController` because that is what `"users_controller".camelize` returns.
+NOTE: Rails configures Zeitwerk to infer file names using the [`String#camelize`](https://api.rubyonrails.org/classes/String.html#method-i-camelize) method. For example, it expects that `app/controllers/users_controller.rb` defines the constant `UsersController` because that is what `"users_controller".camelize` returns. The section [Customizing Inflections](#customizing-file-names-and-defined-constants) below documents ways to override this default. For more details, see [Zeitwerk documentation](https://github.com/fxn/zeitwerk#file-structure).
 
-The section [Customizing Inflections](#customizing-file-names-and-defined-constants) below documents ways to override this default. For more details, see [Zeitwerk documentation](https://github.com/fxn/zeitwerk#file-structure).
+Because names carry that information, Rails can determine which file defines
+which constant just by listing directories, without opening any of the files.
+
+At boot, Rails sets up loaders that build this map from the autoload paths. No
+application code is loaded yet — for each constant, the loaders register an
+entry with Ruby's built-in `autoload`, recording which file defines it:
+
+```ruby
+Object.autoload(:User, "#{Rails.root}/app/models/user.rb")
+```
+
+The first time your code references `User`, Ruby finds no such constant defined,
+consults the entry the loader registered, and loads the file. That is why you
+never write `require` calls for your own classes and modules.
 
 config.autoload_paths
 ---------------------
