@@ -233,6 +233,106 @@ gem dependencies managed by Zeitwerk are eager-loaded too.
 [`config.eager_load`]: configuring.html#config-eager-load
 [`config.rake_eager_load`]: configuring.html#config-rake-eager-load
 
+Reloading
+---------
+
+Rails automatically reloads classes and modules if application files in the autoload paths change (in `development`). More precisely, if the web server is running and application files have been modified, Rails unloads all autoloaded constants managed by the `main` autoloader just before the next request is processed. That way, application classes or modules used during that request will be autoloaded again, thus picking up their current implementation in the file system.
+
+Reloading can be enabled or disabled. The setting that controls this behavior is [`config.enable_reloading`][], which is `true` by default in `development` mode, and `false` by default in `production` mode. For backwards compatibility, Rails also supports `config.cache_classes`, which is equivalent to `!config.enable_reloading`.
+
+Rails uses an evented file monitor to detect files changes by default.  It can be configured instead to detect file changes by walking the autoload paths. This is controlled by the [`config.file_watcher`][] setting.
+
+In a Rails console, there is no file watcher regardless of the value of `config.enable_reloading`. You generally want a console session to be served by a consistent, non-changing set of application classes and modules. It would be confusing to have code automatically reloaded in the middle of a console session.
+
+However, you can explicitly reload in the console by executing `reload!`:
+
+```irb
+irb(main):001:0> User.object_id
+=> 70136277390120
+irb(main):002:0> reload!
+Reloading...
+=> true
+irb(main):003:0> User.object_id
+=> 70136284426020
+```
+
+As you can see, the class object stored in the `User` constant is different after reloading. Reloading does _not_ update an existing `User` object, it loads a new object.
+
+[`config.enable_reloading`]: configuring.html#config-enable-reloading
+[`config.file_watcher`]: configuring.html#config-file-watcher
+
+### Reloading and Stale Objects
+
+It is important to understand that Ruby does not have a way to truly reload
+classes and modules in memory and have that reflected everywhere they are
+already used. So reloading works by unloading instead. Rails removes the
+constants it defined, and lets them be autoloaded again on the next reference.
+
+Technically, "unloading" `User` means removing the constant with
+`Object.send(:remove_const, "User")`. Rails also forgets that the file was ever
+loaded, so that referencing `User` again loads `app/models/user.rb` afresh and
+defines a new class.
+
+For example, the Rails console session below illustrates this:
+
+```irb
+irb> joe = User.new
+irb> reload!
+irb> alice = User.new
+irb> joe.class == alice.class
+=> false
+```
+
+`joe` is an instance of the original `User` class. After a reload, the `User` constant evaluates to a different, reloaded class. `alice` is an instance of the newly loaded `User`, but `joe` is not — his class is stale. You may define `joe` again, start an IRB subsession, or just launch a new console instead of calling `reload!`.
+
+Another situation in which you may find this gotcha is subclassing reloadable classes in a place that is not reloaded:
+
+```ruby
+# lib/vip_user.rb
+class VipUser < User
+end
+```
+
+if `User` is reloaded, since `VipUser` is not, the superclass of `VipUser` is the original stale class object.
+
+TODO: review and revise LLM paste after working on the other "autoloading without reloading section"
+The consequence is that the stale object keeps behaving as it did when it was
+first loaded. Your edits are on disk and in the reloaded class, but the stale
+object does not see them: methods you added are missing, methods you deleted are
+still there, and in the `VipUser` case, instances of a class that looks like it
+inherits from `User` no longer share `User`'s ancestry. Nothing raises. The code
+simply runs against an older version of itself, which is why these bugs tend to
+present as "my change had no effect" rather than as an error.
+
+WARNING: Do not cache reloadable classes or modules.
+
+The solution is one of two moves. Either **store the name instead of the
+object**, and resolve it when you need it, so every lookup goes through the
+constant and picks up the current class:
+
+```ruby
+# Instead of holding on to the class object.
+config.user_model = "User"
+
+# Later, at run time:
+config.user_model.constantize
+```
+
+Or **make the code non-reloadable**, so there is no new object to miss. Code
+whose identity must be stable belongs in the autoload once paths, or in `lib`
+loaded with an ordinary `require`. In the `VipUser` example above, the real fix
+is the reverse of the usual advice though: the problem is not that `VipUser` lives in
+`lib`, it is that a non-reloadable class subclasses a reloadable one. Move
+`VipUser` into `app` so both reload together.
+
+Which move applies depends on who is holding the reference. If it is your own
+application code, moving the class into `app` is usually right. If it is
+something outside the reload cycle — the middleware stack, a framework
+registry, an engine's configuration — you cannot make that side reload, so pass
+a name or make the referent non-reloadable.
+
+WARNING: Do not cache reloadable classes or modules.
+
 Autoloading Without Reloading (`autoload_once_paths`)
 -----------------------------------------------------
 
@@ -316,63 +416,7 @@ module MyApp
 end
 ```
 
-Reloading
----------
 
-Rails automatically reloads classes and modules if application files in the autoload paths change.
-
-More precisely, if the web server is running and application files have been modified, Rails unloads all autoloaded constants managed by the `main` autoloader just before the next request is processed. That way, application classes or modules used during that request will be autoloaded again, thus picking up their current implementation in the file system.
-
-Reloading can be enabled or disabled. The setting that controls this behavior is [`config.enable_reloading`][], which is `true` by default in `development` mode, and `false` by default in `production` mode. For backwards compatibility, Rails also supports `config.cache_classes`, which is equivalent to `!config.enable_reloading`.
-
-Rails uses an evented file monitor to detect files changes by default.  It can be configured instead to detect file changes by walking the autoload paths. This is controlled by the [`config.file_watcher`][] setting.
-
-In a Rails console there is no file watcher active regardless of the value of `config.enable_reloading`. This is because, normally, it would be confusing to have code reloaded in the middle of a console session. Similar to an individual request, you generally want a console session to be served by a consistent, non-changing set of application classes and modules.
-
-However, you can force a reload in the console by executing `reload!`:
-
-```irb
-irb(main):001:0> User.object_id
-=> 70136277390120
-irb(main):002:0> reload!
-Reloading...
-=> true
-irb(main):003:0> User.object_id
-=> 70136284426020
-```
-
-As you can see, the class object stored in the `User` constant is different after reloading.
-
-[`config.enable_reloading`]: configuring.html#config-enable-reloading
-[`config.file_watcher`]: configuring.html#config-file-watcher
-
-### Reloading and Stale Objects
-
-It is very important to understand that Ruby does not have a way to truly reload classes and modules in memory, and have that reflected everywhere they are already used. Technically, "unloading" the `User` class means removing the `User` constant via `Object.send(:remove_const, "User")`.
-
-For example, check out this Rails console session:
-
-```irb
-irb> joe = User.new
-irb> reload!
-irb> alice = User.new
-irb> joe.class == alice.class
-=> false
-```
-
-`joe` is an instance of the original `User` class. When there is a reload, the `User` constant then evaluates to a different, reloaded class. `alice` is an instance of the newly loaded `User`, but `joe` is not — his class is stale. You may define `joe` again, start an IRB subsession, or just launch a new console instead of calling `reload!`.
-
-Another situation in which you may find this gotcha is subclassing reloadable classes in a place that is not reloaded:
-
-```ruby
-# lib/vip_user.rb
-class VipUser < User
-end
-```
-
-if `User` is reloaded, since `VipUser` is not, the superclass of `VipUser` is the original stale class object.
-
-WARNING: Do not cache reloadable classes or modules.
 
 Autoloading When the Application Boots
 --------------------------------------
