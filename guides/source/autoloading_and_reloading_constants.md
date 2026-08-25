@@ -71,6 +71,11 @@ first reference (autoloading), all at once during boot (eager loading), or again
 after a file changes (reloading). See [Eager Loading]() and [Reloading]() for
 more detail on those. We focus on how autoloading works here.
 
+There are two autoloaders: `main` and `once`. The `main` autoloader manages
+reloadable code, which is nearly everything you write, including all of `app`.
+The `once` autoloader's purpose is to manage code that is autoloaded but never
+reloaded. Both load code the same way, reloading vs. not is the only difference between them.
+
 Another question is: _which_ files are autoloaded? The Zeitwerk loaders manage
 the code in your application's autoload paths, which by default are all
 subdirectories of `app` directory. Zeitwerk loaders do _not_ manage the Ruby
@@ -109,9 +114,16 @@ write explicit `require` calls for the classes and modules that Zeitwerk manages
 Adding Autoload Paths
 ---------------------
 
-We refer to the list of application directories whose contents are to be autoloaded and (optionally) reloaded as _autoload paths_. For example, `app/models`. Such directories represent the root namespace: `Object`.
+We refer to the list of application directories whose contents are autoloaded and (optionally) reloaded as _autoload paths_. For example, `app/models`.
 
-INFO. Autoload paths are called _root directories_ in Zeitwerk documentation, but we'll stay with "autoload path" in this guide.
+Directories inside an autoload path act as namespaces, so
+`app/models/billing/invoice.rb` defines `Billing::Invoice`. Files directly
+inside the authload path define top-level constants, so `app/models/user.rb`
+defines `User`, not `Models::User`. In Ruby, top-level constants belong to
+`Object`, so Zeitwerk describes autoload paths as representing the root
+namespace.
+
+INFO: Autoload paths are called _root directories_ in Zeitwerk documentation, but we'll stay with "autoload path" in this guide.
 
 By default, the autoload paths of an application consist of all the subdirectories of `app` that exist when the application boots ---except for `assets`, `javascript`, and `views`--- plus the autoload paths of engines it might depend on.
 
@@ -196,9 +208,33 @@ module MyApp
   end
 end
 ```
+Todo next: Move Eager Loading, Reloading, Autoloading when App boots, and Autholoading without Reload section here in that order
 
-config.autoload_once_paths --> Autoloading Without Reloading
---------------------------
+Eager Loading
+-------------
+
+In production-like environments it is generally better to load all the application code when the application boots. Eager loading puts everything in memory ready to serve requests right away, and it is also [CoW](https://en.wikipedia.org/wiki/Copy-on-write)-friendly (which means Zeitwerk
+defines every constant up front, before the server forks its workers, so those
+workers share the loaded code in memory rather than each holding its own copy,
+reducing total memory use).
+
+Eager loading is controlled by the flag [`config.eager_load`][]. By default, `development` does not eager load, `test` eager loads if the environment variable `CI` is present, and `production` eager loads.
+
+For Rake tasks, the value assigned to `config.eager_load` is replaced with [`config.rake_eager_load`][]. By default, this is `false` in `development` and `production`, and matches `config.eager_load` in `test`.
+
+NOTE: The order in which files are eager-loaded is undefined.
+
+During eager loading, Rails invokes the `Zeitwerk::Loader.eager_load_all`
+method. Any gem that manages its own code with Zeitwerk sets up a loader too, so
+your application's loaders are not the only ones in the process. The
+`eager_load_all` method broadcasts `eager_load` to all loaders and ensures all
+gem dependencies managed by Zeitwerk are eager-loaded too.
+
+[`config.eager_load`]: configuring.html#config-eager-load
+[`config.rake_eager_load`]: configuring.html#config-rake-eager-load
+
+Autoloading Without Reloading (`autoload_once_paths`)
+-----------------------------------------------------
 
 You may want to be able to autoload classes and modules without reloading them. The `autoload_once_paths` configuration stores code that can be autoloaded, but won't be reloaded.
 
@@ -252,8 +288,7 @@ INFO: Technically, you can autoload classes and modules managed by the `once` au
 
 The autoload once paths are managed by `Rails.autoloaders.once`.
 
-config.autoload_lib_once(ignore:)
----------------------------------
+### config.autoload_lib_once(ignore:)
 
 The method `config.autoload_lib_once` is similar to `config.autoload_lib`, except that it adds `lib` to `config.autoload_once_paths` instead. It has to be invoked from `config/application.rb` or `config/environments/*.rb`, and it is not available for engines.
 
@@ -462,22 +497,7 @@ end
 
 Then, at run time, `config.user_model.constantize` gives you the current class object.
 
-Eager Loading
--------------
 
-In production-like environments it is generally better to load all the application code when the application boots. Eager loading puts everything in memory ready to serve requests right away, and it is also [CoW](https://en.wikipedia.org/wiki/Copy-on-write)-friendly.
-
-Eager loading is controlled by the flag [`config.eager_load`][]. By default, `development` does not eager load, `test` eager loads if the environment variable `CI` is present, and `production` eager loads.
-
-For Rake task, however, the value assigned to `config.eager_load` is replaced with [`config.rake_eager_load`][]. By default, this one is `false` in `development` and `production`, and matches `config.eager_load` in `test`.
-
-The order in which files are eager-loaded is undefined.
-
-During eager loading, Rails invokes `Zeitwerk::Loader.eager_load_all`. That ensures all gem dependencies managed by Zeitwerk are eager-loaded too.
-
-
-[`config.eager_load`]: configuring.html#config-eager-load
-[`config.rake_eager_load`]: configuring.html#config-rake-eager-load
 
 Loading Constants to Allow Single Table Inheritance
 ---------------------------------------------------
