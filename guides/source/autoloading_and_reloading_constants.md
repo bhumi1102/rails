@@ -338,7 +338,7 @@ Autoloading Without Reloading (`autoload_once_paths`)
 
 You may want to be able to autoload classes and modules without reloading them. The `autoload_once_paths` configuration stores code that can be autoloaded, but won't be reloaded.
 
-By default, this collection is empty, but you can extend it pushing to `config.autoload_once_paths`. You can do so in `config/application.rb` or `config/environments/*.rb`. For example:
+By default, this collection is empty, but you can extend it by pushing to `config.autoload_once_paths`. You can do so in `config/application.rb` or `config/environments/*.rb`. For example:
 
 ```ruby
 module MyApplication
@@ -350,7 +350,7 @@ end
 
 Also, engines can push in body of the engine class and in their own `config/environments/*.rb`.
 
-INFO. If `app/serializers` is pushed to `config.autoload_once_paths`, Rails no longer considers this an autoload path, despite being a custom directory under `app`. This setting overrides that rule.
+NOTE: If `app/serializers` is pushed to `config.autoload_once_paths`, Rails no longer considers this an autoload path, despite being a custom directory under `app`. This setting overrides that rule.
 
 This is key for classes and modules that are cached in places that survive reloads, like the Rails framework itself.
 
@@ -361,9 +361,11 @@ For example, Active Job serializers are stored inside Active Job:
 Rails.application.config.active_job.custom_serializers << MoneySerializer
 ```
 
-and Active Job itself is not reloaded when there's a reload, only application and engines code in the autoload paths is.
+Active Job itself is not reloaded during a reload, only application and engines code in the autoload paths is reloaded.
 
-Making `MoneySerializer` reloadable would be confusing, because reloading an edited version would have no effect on that class object stored in Active Job. Indeed, if `MoneySerializer` was reloadable, starting with Rails 7 such initializer would raise a `NameError`.
+Making `MoneySerializer` reloadable would be confusing, because reloading an edited version would have no effect on that class object stored in Active Job. 
+
+If `MoneySerializer` was reloadable, starting with Rails 7 such initializer would raise a `NameError`.
 
 Another use case is when engines decorate framework classes:
 
@@ -774,43 +776,39 @@ That covers Zeitwerk naming compliance and other possible error conditions. Plea
 Troubleshooting
 ---------------
 
-The best way to follow what the loaders are doing is to inspect their activity.
-
-The easiest way to do that is to include
+The best way to follow what the loaders are doing is to inspect their activity:
 
 ```ruby
+# config/application.rb
 Rails.autoloaders.log!
 ```
 
-in `config/application.rb` after loading the framework defaults. That will print traces to standard output.
+After loading the framework defaults. That will print traces to standard output.
 
-If you prefer logging to a file, configure this instead:
+You can also log to a file instead:
 
 ```ruby
 Rails.autoloaders.logger = Logger.new("#{Rails.root}/log/autoloading.log")
 ```
 
-The Rails logger is not yet available when `config/application.rb` executes. If you prefer to use the Rails logger, configure this setting in an initializer instead:
+The Rails logger is not yet available when `config/application.rb` executes. If you prefer to use the Rails logger, configure this setting in an initializer:
 
 ```ruby
 # config/initializers/log_autoloaders.rb
 Rails.autoloaders.logger = Rails.logger
 ```
 
-Rails.autoloaders
------------------
+### `Rails.autoloaders`
 
-The Zeitwerk instances managing your application are available at
+You can also see the Zeitwerk instances managing your application with:
 
 ```ruby
 Rails.autoloaders.main
 Rails.autoloaders.once
 ```
 
-The predicate
+There also a predicate which returns `true` when Zeitwerk is enabled:
 
 ```ruby
 Rails.autoloaders.zeitwerk_enabled?
 ```
-
-is still available in Rails 7 applications, and returns `true`.
