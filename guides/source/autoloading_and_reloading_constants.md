@@ -336,9 +336,9 @@ WARNING: Do not cache reloadable classes or modules.
 Autoloading Without Reloading (`autoload_once_paths`)
 -----------------------------------------------------
 
-You may want to be able to autoload classes and modules without reloading them. The `autoload_once_paths` configuration stores code that can be autoloaded, but won't be reloaded.
+You may need to be able to autoload classes and modules without reloading them. The `autoload_once_paths` configuration specifies code that can be autoloaded, but won't be reloaded.
 
-By default, this collection is empty, but you can extend it by pushing to `config.autoload_once_paths`. You can do so in `config/application.rb` or `config/environments/*.rb`. For example:
+By default, the `autoload_once_paths` is empty, but you can add to it by pushing to `config.autoload_once_paths`. You can do so in `config/application.rb` or `config/environments/*.rb`. For example:
 
 ```ruby
 module MyApplication
@@ -348,13 +348,18 @@ module MyApplication
 end
 ```
 
-Also, engines can push in body of the engine class and in their own `config/environments/*.rb`.
+Engines can do the same, either in the body of the engine class itself or in
+their own `config/environments/*.rb` file.
 
 NOTE: If `app/serializers` is pushed to `config.autoload_once_paths`, Rails no longer considers this an autoload path, despite being a custom directory under `app`. This setting overrides that rule.
 
-This is key for classes and modules that are cached in places that survive reloads, like the Rails framework itself.
+The need to not reload arises whenever something outside the reload cycle holds
+on to your class or module such as the Rails framework, an engine, or a
+middleware stack. Reloading such a class produces a new object that is unused.
+Making the class non-reloadable removes the discrepancy and ensures there is
+only ever one object.
 
-For example, Active Job serializers are stored inside Active Job:
+For an example of classes and modules that are cached in places that survive reloads, consider the Active Job serializers which are stored inside Active Job:
 
 ```ruby
 # config/initializers/custom_serializers.rb
@@ -363,11 +368,11 @@ Rails.application.config.active_job.custom_serializers << MoneySerializer
 
 Active Job itself is not reloaded during a reload, only application and engines code in the autoload paths is reloaded.
 
-Making `MoneySerializer` reloadable would be confusing, because reloading an edited version would have no effect on that class object stored in Active Job. 
+Making `MoneySerializer` reloadable would be confusing, because reloading an edited version would have no effect on the class object already stored within Active Job. 
 
-If `MoneySerializer` was reloadable, starting with Rails 7 such initializer would raise a `NameError`.
+If `MoneySerializer` was reloadable, using it in an initializer would raise a `NameError`.
 
-Another use case is when engines decorate framework classes:
+Another use case for not reloading and using `autoload_once_paths` is when engines decorate framework classes:
 
 ```ruby
 initializer "decorate ActionController::Base" do
@@ -377,18 +382,25 @@ initializer "decorate ActionController::Base" do
 end
 ```
 
-There, the module object stored in `MyDecoration` by the time the initializer runs becomes an ancestor of `ActionController::Base`, and reloading `MyDecoration` is pointless, it won't affect that ancestor chain.
+When the above initializer runs, `include` inserts the module object
+`MyDecoration` currently refers to into the ancestor chain of
+`ActionController::Base`. The chain holds that object directly. If
+`MyDecoration` were reloadable, a reload would define a new module, but the
+ancestor chain would still hold the original Controllers would keep running the
+version loaded at boot, and your edits to `MyDecordation` would have no effect.
 
-Classes and modules from the autoload once paths can be autoloaded in `config/initializers`. So, with that configuration this works:
+Classes and modules from the autoload once paths are safe to reference in `config/initializers`. For example:
 
 ```ruby
 # config/initializers/custom_serializers.rb
 Rails.application.config.active_job.custom_serializers << MoneySerializer
 ```
 
-INFO: Technically, you can autoload classes and modules managed by the `once` autoloader in any initializer that runs after `:bootstrap_hook`.
+Initializers run once at boot and never again, so referencing a reloadable
+constant there would cause Rails to raise a `NameError`. A constant that is
+never reloaded, such as the `MoneySeriablizer`, has no such problem, and can be used in initializers freely.
 
-The autoload once paths are managed by `Rails.autoloaders.once`.
+INFO: Technically, you can autoload classes and modules managed by the `once` autoloader in any initializer that runs after `:bootstrap_hook`.
 
 ### config.autoload_lib_once(ignore:)
 
@@ -396,7 +408,7 @@ The method `config.autoload_lib_once` is similar to `config.autoload_lib`, excep
 
 By calling `config.autoload_lib_once`, classes and modules in `lib` can be autoloaded, even from application initializers, but won't be reloaded.
 
-`config.autoload_lib_once` is not available before 7.1, but you can still emulate it as long as the application uses Zeitwerk:
+The `config.autoload_lib_once` configuration is not available before Rails version 7.1, but you can still emulate it as long as the application uses Zeitwerk:
 
 ```ruby
 # config/application.rb
@@ -417,8 +429,6 @@ module MyApp
   end
 end
 ```
-
-
 
 Autoloading When the Application Boots
 --------------------------------------
