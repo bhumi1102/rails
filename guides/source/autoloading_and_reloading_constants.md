@@ -440,7 +440,7 @@ when you need reloadable code to run at boot, when you need code at boot that
 something outside the reload cycle will keep a reference to, and when an engine
 needs to be configured with one of your application classes.
 
-### Load Reloadable Code During Boot
+### Loading Reloadable Code During Boot
 
 #### `to_prepare`
 
@@ -464,18 +464,13 @@ NOTE: For historical reasons, this callback may run twice. The code it executes 
 
 #### `after_initialize`
 
-Reloadable classes and modules can be autoloaded in `after_initialize` blocks too. These run on boot, but do not run again on reload. In some exceptional cases this may be what you want.
-
-Preflight checks are a use case for this:
-
-
 Reloadable classes and modules can be autoloaded in `after_initialize` blocks
 too. These run on boot but not on reload, which is what you want when the work
 is a one-time check rather than configuration that must be reapplied to each
 reloaded class.
 
 One use case is verifying at startup that the application's environment is
-usable, and refusing to start if it isn't:
+usable, and refusing to start if not:
 
 ```ruby
 # config/initializers/check_admin_presence.rb
@@ -486,17 +481,15 @@ Rails.application.config.after_initialize do
 end
 ```
 
-### Use Case 2: During Boot, Load Code that Remains Cached
+### Loading Code That Is Externally Cached
 
-Some configurations take a class or module object, and they store it in a place that is not reloaded. It is important that these are not reloadable, because edits would not be reflected in those cached stale objects.
-
-One example is middleware:
+Some applications take a class or module object, and store it in an external place that is not reloaded. If this class or module is reloadable you run into the [stale object](#reloading-and-stale-objects) problem. One example is middleware:
 
 ```ruby
 config.middleware.use MyApp::Middleware::Foo
 ```
 
-When you reload, the middleware stack is not affected, so it would be confusing that `MyApp::Middleware::Foo` is reloadable. Changes in its implementation would have no effect.
+When you reload, the middleware stack is not affected. It would be confusing for `MyApp::Middleware::Foo` to be reloadable since changes in its implementation would have no effect.
 
 Another example is Active Job serializers:
 
@@ -505,7 +498,7 @@ Another example is Active Job serializers:
 Rails.application.config.active_job.custom_serializers << MoneySerializer
 ```
 
-Whatever `MoneySerializer` evaluates to during initialization gets pushed to the custom serializers, and that object stays there on reloads.
+Whatever `MoneySerializer` evaluates to during initialization gets pushed to the custom serializers, and that object stays unchanged on reloads.
 
 Yet another example are railties or engines decorating framework classes by including modules. For instance, [`turbo-rails`](https://github.com/hotwired/turbo-rails) decorates `ActiveRecord::Base` this way:
 
@@ -519,7 +512,7 @@ end
 
 That adds a module object to the ancestor chain of `ActiveRecord::Base`. Changes in `Turbo::Broadcastable` would have no effect if reloaded, the ancestor chain would still have the original one.
 
-Corollary: Those classes or modules **cannot be reloadable**.
+Due to the stale object problem, classes and modules that something outside of the reload cycle keeps a reference to cannot be reloadable.
 
 An idiomatic way to organize these files is to put them in the `lib` directory and load them with `require` where needed. For example, if the application has custom middleware in `lib/middleware`, issue a regular `require` call before configuring it:
 
@@ -535,11 +528,9 @@ Additionally, if `lib` is in the autoload paths, configure the autoloader to ign
 config.autoload_lib(ignore: %w(assets tasks ... middleware))
 ```
 
-since you are loading those files yourself.
+As noted above, another option is to have the directory that defines them in the autoload once paths and autoload. Please check the [section about config.autoload_once_paths](#autoloading-without-reloading-autoload_once_paths) for details.
 
-As noted above, another option is to have the directory that defines them in the autoload once paths and autoload. Please check the [section about config.autoload_once_paths](#config-autoload-once-paths) for details.
-
-### Use Case 3: Configure Application Classes for Engines
+### Configuring Application Classes for Engines
 
 Let's suppose an engine works with the reloadable application class that models users, and has a configuration point for it:
 
@@ -550,7 +541,9 @@ MyEngine.configure do |config|
 end
 ```
 
-In order to play well with reloadable application code, the engine instead needs applications to configure the _name_ of that class:
+The above code generates a `NameError` assuming `User` is is autoload paths and hence reloadable.
+
+In order to play well with reloadable application code, the engine can instead refer to the _name_ of that reloadable class:
 
 ```ruby
 # config/initializers/my_engine.rb
@@ -559,9 +552,7 @@ MyEngine.configure do |config|
 end
 ```
 
-Then, at run time, `config.user_model.constantize` gives you the current class object.
-
-
+Then, use `config.user_model.constantize` to get the current class object.
 
 Loading Constants to Allow Single Table Inheritance
 ---------------------------------------------------
