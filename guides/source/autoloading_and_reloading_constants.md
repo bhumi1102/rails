@@ -557,25 +557,25 @@ Then, use `config.user_model.constantize` to get the current class object.
 Loading Constants to Allow Single Table Inheritance
 ---------------------------------------------------
 
-Single Table Inheritance doesn't play well with lazy loading: Active Record has to be aware of STI hierarchies to work correctly, but when lazy loading, classes are precisely loaded only on demand!
+[Single Table Inheritance](association_basics.html#single-table-inheritance-sti)(STI) doesn't play well with lazy loading: Active Record has to be aware of STI model hierarchies to work correctly, but when lazy loading, classes are precisely loaded only on demand!
 
-To address this fundamental mismatch we need to preload STIs. There are a few options to accomplish this, with different trade-offs. Let's see them.
+To address this fundamental mismatch we need to preload STI models. There are a few options to accomplish this, with different trade-offs. Let's see them.
 
 ### Option 1: Enable Eager Loading
 
-The easiest way to preload STIs is to enable eager loading by setting:
+The easiest way to preload STI models is to enable eager loading in `config/environments/development.rb` and `config/environments/test.rb`:
 
 ```ruby
 config.eager_load = true
 ```
 
-in `config/environments/development.rb` and `config/environments/test.rb`.
-
 This is simple, but may be costly because it eager loads the entire application on boot and on every reload. The trade-off may be worthwhile for small applications, though.
 
 ### Option 2: Preload a Collapsed Directory
 
-Store the files that define the hierarchy in a dedicated directory, which makes sense also conceptually. The directory is not meant to represent a namespace, its sole purpose is to group the STI:
+You can also store the files that define the hierarchy in a dedicated directory. We eager load these few files on boot and reload even if the STI is not used.  
+
+The directory is not meant to represent a namespace, its sole purpose is to group the STI models:
 
 ```
 app/models/shapes/shape.rb
@@ -584,7 +584,7 @@ app/models/shapes/square.rb
 app/models/shapes/triangle.rb
 ```
 
-In this example, we still want `app/models/shapes/circle.rb` to define `Circle`, not `Shapes::Circle`. This may be your personal preference to keep things simple, and also avoids refactors in existing code bases. The [collapsing](https://github.com/fxn/zeitwerk#collapsing-directories) feature of Zeitwerk allows us to do that:
+In this example, we still want `app/models/shapes/circle.rb` to define `Circle`, not `Shapes::Circle`. This may be your personal preference to keep things simple, and also avoids having to refactor an existing codebase. The [collapsing](https://github.com/fxn/zeitwerk#collapsing-directories) feature of Zeitwerk allows us to do that:
 
 ```ruby
 # config/initializers/preload_stis.rb
@@ -599,7 +599,7 @@ unless Rails.application.config.eager_load
 end
 ```
 
-In this option, we eager load these few files on boot and reload even if the STI is not used. However, unless your application has a lot of STIs, this won't have any measurable impact.
+Unless your application has a lot of STI models, this won't have any measurable negative impact of this approach.
 
 INFO: The method `Zeitwerk::Loader#eager_load_dir` was added in Zeitwerk 2.6.2. For older versions, you can still list the `app/models/shapes` directory and invoke `require_dependency` on its contents.
 
@@ -607,7 +607,7 @@ WARNING: If models are added, modified, or deleted from the STI, reloading works
 
 ### Option 3: Preload a Regular Directory
 
-Similar to the previous one, but the directory is meant to be a namespace. That is, `app/models/shapes/circle.rb` is expected to define `Shapes::Circle`.
+Similar to the previous option, but the directory is meant to be a namespace. That is, `app/models/shapes/circle.rb` is expected to define `Shapes::Circle`.
 
 For this one, the initializer is the same except no collapsing is configured:
 
@@ -625,7 +625,7 @@ Same trade-offs.
 
 ### Option 4: Preload Types from the Database
 
-In this option we do not need to organize the files in any way, but we hit the database:
+In this option we do not need to organize the files in a new directory, we check the database instead:
 
 ```ruby
 # config/initializers/preload_stis.rb
