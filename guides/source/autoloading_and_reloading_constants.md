@@ -336,7 +336,7 @@ WARNING: Do not cache reloadable classes or modules.
 Autoloading Without Reloading (`autoload_once_paths`)
 -----------------------------------------------------
 
-You may need to be able to autoload classes and modules without reloading them. The `autoload_once_paths` configuration specifies code that can be autoloaded, but won't be reloaded.
+You may need to be able to autoload classes and modules _without_ reloading them. The `autoload_once_paths` configuration specifies code that can be autoloaded, but won't be reloaded.
 
 By default, the `autoload_once_paths` is empty, but you can add to it by pushing to `config.autoload_once_paths`. You can do so in `config/application.rb` or `config/environments/*.rb`. For example:
 
@@ -351,7 +351,7 @@ end
 Engines can do the same, either in the body of the engine class itself or in
 their own `config/environments/*.rb` file.
 
-NOTE: If `app/serializers` is pushed to `config.autoload_once_paths`, Rails no longer considers this an autoload path, despite being a custom directory under `app`. This setting overrides that rule.
+NOTE: If `app/serializers` is pushed to `config.autoload_once_paths`, Rails no longer considers this an autoload path, despite being a custom directory under `app`. The `autoload_once_paths` setting overrides that default.
 
 The need to not reload arises whenever something outside the reload cycle holds
 on to your class or module such as the Rails framework, an engine, or a
@@ -370,8 +370,6 @@ Active Job itself is not reloaded during a reload, only application and engines 
 
 Making `MoneySerializer` reloadable would be confusing, because reloading an edited version would have no effect on the class object already stored within Active Job. 
 
-If `MoneySerializer` was reloadable, using it in an initializer would raise a `NameError`.
-
 Another use case for not reloading and using `autoload_once_paths` is when engines decorate framework classes:
 
 ```ruby
@@ -386,7 +384,7 @@ When the above initializer runs, `include` inserts the module object
 `MyDecoration` currently refers to into the ancestor chain of
 `ActionController::Base`. The chain holds that object directly. If
 `MyDecoration` were reloadable, a reload would define a new module, but the
-ancestor chain would still hold the original Controllers would keep running the
+ancestor chain would still hold the original. Controllers would keep running the
 version loaded at boot, and your edits to `MyDecordation` would have no effect.
 
 Classes and modules from the autoload once paths are safe to reference in `config/initializers`. For example:
@@ -433,17 +431,18 @@ end
 Autoloading When the Application Boots
 --------------------------------------
 
-While booting, applications can autoload from the autoload once paths, which are managed by the `once` autoloader. Please check the section [`config.autoload_once_paths`](#config-autoload-once-paths) above.
+While booting, applications can autoload from the autoload once paths, which are managed by the `once` autoloader. However, during boot you cannot autoload from the paths managed by the `main` autoloader. This applies to code in `config/initializers` as well as initializers declared by application or engines alike.
 
-However, you cannot autoload from the autoload paths, which are managed by the `main` autoloader. This applies to code in `config/initializers` as well as application or engines initializers.
+This is because initializers only run once, when the application boots. They do not run again on reloads. If an initializer used a reloadable class or module, edits to those would not be reflected in that initial code. Therefore, referring to reloadable constants during initialization raises an error (See [Autoloading Without Reloading](#autoloading-without-reloading-autoload_once_paths) section for more).
 
-Why? Initializers only run once, when the application boots. They do not run again on reloads. If an initializer used a reloadable class or module, edits to them would not be reflected in that initial code, thus becoming stale. Therefore, referring to reloadable constants during initialization is disallowed.
+There are three situations where this comes up, and each has a different answer:
+when you need reloadable code to run at boot, when you need code at boot that
+something outside the reload cycle will keep a reference to, and when an engine
+needs to be configured with one of your application classes.
 
-Let's see what to do instead.
+### Load Reloadable Code During Boot
 
-### Use Case 1: During Boot, Load Reloadable Code
-
-#### Autoload on Boot and on Each Reload
+#### `to_prepare`
 
 Let's imagine `ApiGateway` is a reloadable class and you need to configure its endpoint while the application boots:
 
@@ -452,7 +451,7 @@ Let's imagine `ApiGateway` is a reloadable class and you need to configure its e
 ApiGateway.endpoint = "https://example.com" # NameError
 ```
 
-Initializers cannot refer to reloadable constants, you need to wrap that in a `to_prepare` block, which runs on boot, and after each reload:
+Since initializers cannot refer to reloadable constants, the above code will generate a `NameError`. The solution is to wrap that in a `to_prepare` block, which runs on boot and after each reload:
 
 ```ruby
 # config/initializers/api_gateway_setup.rb
@@ -463,11 +462,20 @@ end
 
 NOTE: For historical reasons, this callback may run twice. The code it executes must be idempotent.
 
-#### Autoload on Boot Only
+#### `after_initialize`
 
 Reloadable classes and modules can be autoloaded in `after_initialize` blocks too. These run on boot, but do not run again on reload. In some exceptional cases this may be what you want.
 
 Preflight checks are a use case for this:
+
+
+Reloadable classes and modules can be autoloaded in `after_initialize` blocks
+too. These run on boot but not on reload, which is what you want when the work
+is a one-time check rather than configuration that must be reapplied to each
+reloaded class.
+
+One use case is verifying at startup that the application's environment is
+usable, and refusing to start if it isn't:
 
 ```ruby
 # config/initializers/check_admin_presence.rb
