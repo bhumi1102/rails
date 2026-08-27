@@ -208,7 +208,8 @@ module MyApp
   end
 end
 ```
-Todo next: Move Eager Loading, Reloading, Autoloading when App boots, and Autholoading without Reload section here in that order
+
+NOTE: `config.autoload_lib` is not available for engines.
 
 Eager Loading
 -------------
@@ -711,7 +712,8 @@ default, but if it exists, Rails automatically adds it to the autoload paths.
 
 By default, the file `app/services/users/signup.rb` defines `Users::Signup`
 since `app/services` is the autoload path. But what if you prefer that entire
-subtree to be under a `Services` namespace so the above file defines `Servicess::Users::Signup`?
+subtree to be under a `Services` namespace so the above file defines
+`Servicess::Users::Signup`?
 
 One workaround to accomplished this can be to create a subdirectory:
 `app/services/services`. Since `app/services` is the autoload path, the nested
@@ -763,13 +765,16 @@ Custom namespaces are also supported for the `once` autoloader. However, since t
 Autoloading and Engines
 -----------------------
 
-Todo: add that config.autoload_lib is not available for engines.
+[Engines](https://guides.rubyonrails.org/engines.html) run in the context of a parent application, and their code is autoloaded, reloaded, and eager loaded by the parent application. If the application runs in `zeitwerk` mode, the engine code is loaded by `zeitwerk` mode. If the application runs in `classic` mode, the engine code is loaded by `classic` mode.
 
-Engines run in the context of a parent application, and their code is autoloaded, reloaded, and eager loaded by the parent application. If the application runs in `zeitwerk` mode, the engine code is loaded by `zeitwerk` mode. If the application runs in `classic` mode, the engine code is loaded by `classic` mode.
+TIP: If your engine supports Rails 6 as well as current Rails, you can detect
+the parent application's autoloading mode with
+`Rails.autoloaders.zeitwerk_enabled?`. It returns `true` in Rails 7 and later,
+since `zeitwerk` is the only mode there.
 
 When Rails boots, engine directories are added to the autoload paths, and from the point of view of the autoloader, there's no difference. Autoloaders' main inputs are the autoload paths, and whether they belong to the application source tree or to some engine source tree is irrelevant.
 
-For example, this application uses [Devise](https://github.com/heartcombo/devise):
+For example, this application uses the [Devise] (https://github.com/heartcombo/devise) gem:
 
 ```bash
 $ bin/rails runner 'pp ActiveSupport::Dependencies.autoload_paths'
@@ -783,9 +788,7 @@ $ bin/rails runner 'pp ActiveSupport::Dependencies.autoload_paths'
  ".../gems/devise-4.8.0/app/mailers"]
  ```
 
-If the engine controls the autoloading mode of its parent application, the engine can be written as usual.
-
-However, if an engine supports Rails 6 or Rails 6.1 and does not control its parent applications, it has to be ready to run under either `classic` or `zeitwerk` mode. Things to take into account:
+If the engine controls the autoloading mode of its parent application, the engine can be written as usual. However, if an engine supports Rails 6 or Rails 6.1 and does not control its parent applications, it has to be ready to run under either `classic` or `zeitwerk` mode. Things to take into account:
 
 1. If `classic` mode would need a `require_dependency` call to ensure some constant is loaded at some point, write it. While `zeitwerk` would not need it, it won't hurt, it will work in `zeitwerk` mode too.
 
@@ -839,17 +842,41 @@ The Rails logger is not yet available when `config/application.rb` executes. If 
 Rails.autoloaders.logger = Rails.logger
 ```
 
-### `Rails.autoloaders`
+How Zeitwerk Interfaces with Rails (`Rails.autoloaders`)
+--------------------------------------------------------
 
-You can also see the Zeitwerk instances managing your application with:
+Zeitwerk is independent library with its own public API. Rails does not wrap
+that API in Rails specific configuration settings. Instead, it exposes the two
+loader objects it sets up and lets you call Zeitwerk's methods on them directly:
 
 ```ruby
 Rails.autoloaders.main
 Rails.autoloaders.once
 ```
 
-There also a predicate which returns `true` when Zeitwerk is enabled:
+These accessors are the interface between Rails and Zeitwerk. Anything Rails
+configures for you — the autoload paths, the autoload once paths, reloading,
+eager loading — has a Rails setting. Anything beyond that is Zeitwerk's
+API, reached through these objects. For example:
 
 ```ruby
-Rails.autoloaders.zeitwerk_enabled?
+# Treat a directory as organizational rather than as a namespace.
+Rails.autoloaders.main.collapse("#{Rails.root}/app/models/shapes")
+
+# Map an autoload path to a namespace other than Object.
+Rails.autoloaders.main.push_dir("#{Rails.root}/app/services", namespace: Services)
+
+# Override how file names are converted to constant names.
+Rails.autoloaders.each do |autoloader|
+  autoloader.inflector.inflect("html_parser" => "HTMLParser")
+end
 ```
+
+The benefit of this arrangement is that Zeitwerk's features are available to you
+as soon as Zeitwerk ships them, without waiting for Rails to add a corresponding
+setting. For anything not documented in this guide, consult the [Zeitwerk
+documentation](https://github.com/fxn/zeitwerk) and call the method on the
+loader you want it applied to.
+
+NOTE: `Rails.autoloaders` also responds to `each`, which is useful when a
+customization should apply to both loaders, as in the inflector example above. `Rails.autoloaders`
