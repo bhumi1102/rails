@@ -10,7 +10,8 @@ After reading this guide, you will know:
 * The difference between autoloading, reloading, and eager loading
 * Configuration options and directory structure for autoloading
 * The difference between the *main* and *once* autoloaders 
-* Options for allowing Single Table Inheritance to work with autoloading
+* How Engines and Single Table Inheritance to work with autoloading
+* How to customize file names and namespaces with `zeitwerk`
 * How to troubleshoot autoloading
 
 --------------------------------------------------------------------------------
@@ -31,9 +32,10 @@ or modules the given file defines come into existence. For example, the
 you would need to call `require` to add them (if this was an ordinary Ruby program):
 
 ```ruby
-# Do NOT do this in Rails
+# Do not do this in Rails
 require "application_controller"
 require "post"
+# Do not do this in Rails
 
 class PostsController < ApplicationController
   def index
@@ -223,7 +225,7 @@ Eager loading is controlled by the flag [`config.eager_load`][]. By default, `de
 
 For Rake tasks, the value assigned to `config.eager_load` is replaced with [`config.rake_eager_load`][]. By default, this is `false` in `development` and `production`, and matches `config.eager_load` in `test`.
 
-NOTE: The order in which files are eager-loaded is undefined.
+WARNING: The order in which files are eager-loaded is undefined.
 
 During eager loading, Rails invokes the `Zeitwerk::Loader.eager_load_all`
 method. Any gem that manages its own code with Zeitwerk sets up a loader too, so
@@ -241,7 +243,7 @@ Rails automatically reloads classes and modules if application files in the auto
 
 Reloading can be enabled or disabled. The setting that controls this behavior is [`config.enable_reloading`][], which is `true` by default in `development` mode, and `false` by default in `production` mode. For backwards compatibility, Rails also supports `config.cache_classes`, which is equivalent to `!config.enable_reloading`.
 
-Rails uses an evented file monitor to detect files changes by default.  It can be configured instead to detect file changes by walking the autoload paths. This is controlled by the [`config.file_watcher`][] setting.
+Rails uses an evented file monitor to detect file changes by default.  It can be configured instead to detect file changes by walking the autoload paths. This is controlled by the [`config.file_watcher`][] setting.
 
 In a Rails console, there is no file watcher regardless of the value of `config.enable_reloading`. You generally want a console session to be served by a consistent, non-changing set of application classes and modules. It would be confusing to have code automatically reloaded in the middle of a console session.
 
@@ -403,9 +405,29 @@ INFO: Technically, you can autoload classes and modules managed by the `once` au
 
 ### config.autoload_lib_once(ignore:)
 
-The method `config.autoload_lib_once` is similar to `config.autoload_lib`, except that it adds `lib` to `config.autoload_once_paths` instead. It has to be invoked from `config/application.rb` or `config/environments/*.rb`, and it is not available for engines.
+The method `config.autoload_lib_once` is similar to `config.autoload_lib`, except that it adds `lib` to `config.autoload_once_paths` instead. It has to be invoked from `config/application.rb` or `config/environments/*.rb`, and it is not available for engines:
 
-By calling `config.autoload_lib_once`, classes and modules in `lib` can be autoloaded, even from application initializers, but won't be reloaded.
+```ruby
+# config/application.rb
+module MyApp
+  class Application < Rails::Application
+    config.autoload_lib_once(ignore: %w(assets tasks))
+  end
+end
+```
+
+NOTE: The `ignore` option works the same as described for [`config.autoload_lib`](#autoloading-lib).
+
+By calling `config.autoload_lib_once`, classes and modules in `lib` can be
+autoloaded, even from application initializers, but won't be reloaded. With the
+configuration above, `lib/money_serializer.rb` defines `MoneySerializer` with no
+`require` call, and because that constant is never replaced, an initializer can
+reference it directly:
+
+```ruby
+# config/initializers/custom_serializers.rb
+Rails.application.config.active_job.custom_serializers << MoneySerializer
+```
 
 The `config.autoload_lib_once` configuration is not available before Rails version 7.1, but you can still emulate it as long as the application uses Zeitwerk:
 
@@ -796,10 +818,10 @@ If the engine controls the autoloading mode of its parent application, the engin
 
 3. In `classic` mode, the file `app/model/concerns/foo.rb` is allowed to define both `Foo` and `Concerns::Foo`. In `zeitwerk` mode, there's only one option: it has to define `Foo`. In order to be compatible, define `Foo`.
 
-Testing
--------
+Testing and Troubleshooting
+---------------------------
 
-### Manual Testing
+### Verifying Zeitwerk (`zeitwerk:check`)
 
 The task `zeitwerk:check` checks if the project tree follows the expected naming conventions and it is handy for manual checks. For example, if you're migrating from `classic` to `zeitwerk` mode, or if you're fixing something:
 
@@ -817,8 +839,7 @@ It is a good practice to verify in the test suite that the project eager loads c
 
 That covers Zeitwerk naming compliance and other possible error conditions. Please check the [section about testing eager loading](testing.html#testing-eager-loading) in the [_Testing Rails Applications_](testing.html) guide.
 
-Troubleshooting
----------------
+### Inspecting Autoloading Logs
 
 The best way to follow what the loaders are doing is to inspect their activity:
 
@@ -827,9 +848,7 @@ The best way to follow what the loaders are doing is to inspect their activity:
 Rails.autoloaders.log!
 ```
 
-After loading the framework defaults. That will print traces to standard output.
-
-You can also log to a file instead:
+After loading the framework defaults. That will print traces to standard output. You can also log to a file instead:
 
 ```ruby
 Rails.autoloaders.logger = Logger.new("#{Rails.root}/log/autoloading.log")
@@ -845,7 +864,7 @@ Rails.autoloaders.logger = Rails.logger
 How Zeitwerk Interfaces with Rails (`Rails.autoloaders`)
 --------------------------------------------------------
 
-Zeitwerk is independent library with its own public API. Rails does not wrap
+Zeitwerk is an independent library with its own public API. Rails does not wrap
 that API in Rails specific configuration settings. Instead, it exposes the two
 loader objects it sets up and lets you call Zeitwerk's methods on them directly:
 
@@ -857,7 +876,7 @@ Rails.autoloaders.once
 These accessors are the interface between Rails and Zeitwerk. Anything Rails
 configures for you — the autoload paths, the autoload once paths, reloading,
 eager loading — has a Rails setting. Anything beyond that is Zeitwerk's
-API, reached through these objects. For example:
+API, reached through these objects, as we've seen with these examples:
 
 ```ruby
 # Treat a directory as organizational rather than as a namespace.
@@ -872,11 +891,9 @@ Rails.autoloaders.each do |autoloader|
 end
 ```
 
-The benefit of this arrangement is that Zeitwerk's features are available to you
-as soon as Zeitwerk ships them, without waiting for Rails to add a corresponding
-setting. For anything not documented in this guide, consult the [Zeitwerk
-documentation](https://github.com/fxn/zeitwerk) and call the method on the
-loader you want it applied to.
-
 NOTE: `Rails.autoloaders` also responds to `each`, which is useful when a
 customization should apply to both loaders, as in the inflector example above. `Rails.autoloaders`
+
+For anything not documented in this guide, consult the [Zeitwerk
+documentation](https://github.com/fxn/zeitwerk) and call the method on the
+loader you want it applied to.
