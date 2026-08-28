@@ -9,7 +9,7 @@ After reading this guide, you will know:
 
 * The difference between autoloading, reloading, and eager loading
 * Configuration options and directory structure for autoloading
-* The difference between the *main* and *once* autoloaders 
+* The difference between the *main* and *once* autoloaders
 * How Engines and Single Table Inheritance to work with autoloading
 * How to customize file names and namespaces with `zeitwerk`
 * How to troubleshoot autoloading
@@ -19,7 +19,7 @@ After reading this guide, you will know:
 Introduction
 ------------
 
-In order to understand what autoloading works and why autoloading exists in Rails, it is useful to understand the following about Ruby: 
+In order to understand what autoloading works and why autoloading exists in Rails, it is useful to understand the following about Ruby:
 
 In Ruby, the name of a class or module is a constant. Furthermore, there is no
 inherent relationship between a file's name and the constants it defines.
@@ -371,7 +371,7 @@ Rails.application.config.active_job.custom_serializers << MoneySerializer
 
 Active Job itself is not reloaded during a reload, only application and engines code in the autoload paths is reloaded.
 
-Making `MoneySerializer` reloadable would be confusing, because reloading an edited version would have no effect on the class object already stored within Active Job. 
+Making `MoneySerializer` reloadable would be confusing, because reloading an edited version would have no effect on the class object already stored within Active Job.
 
 Another use case for not reloading and using `autoload_once_paths` is when engines decorate framework classes:
 
@@ -456,7 +456,7 @@ Autoloading When the Application Boots
 
 While booting, applications can autoload from the autoload once paths, which are managed by the `once` autoloader. However, during boot you cannot autoload from the paths managed by the `main` autoloader. This applies to code in `config/initializers` as well as initializers declared by application or engines alike.
 
-This is because initializers only run once, when the application boots. They do not run again on reloads. If an initializer used a reloadable class or module, edits to those would not be reflected in that initial code. Therefore, referring to reloadable constants during initialization raises an error (See [Autoloading Without Reloading](#autoloading-without-reloading-autoload_once_paths) section for more).
+This is because initializers only run once, when the application boots. They do not run again on reloads. If an initializer used a reloadable class or module, edits to those would not be reflected in that initial code. Therefore, referring to reloadable constants during initialization raises an error (See [Autoloading Without Reloading](#autoloading-without-reloading-autoload-once-paths) section for more).
 
 There are three situations where this comes up, and each has a different answer:
 when you need reloadable code to run at boot, when you need code at boot that
@@ -551,7 +551,7 @@ Additionally, if `lib` is in the autoload paths, configure the autoloader to ign
 config.autoload_lib(ignore: %w(assets tasks ... middleware))
 ```
 
-As noted above, another option is to have the directory that defines them in the autoload once paths and autoload. Please check the [section about config.autoload_once_paths](#autoloading-without-reloading-autoload_once_paths) for details.
+As noted above, another option is to have the directory that defines them in the autoload once paths and autoload. Please check the [section about config.autoload_once_paths](#autoloading-without-reloading-autoload-once-paths) for details.
 
 ### Configuring Application Classes for Engines
 
@@ -596,7 +596,7 @@ This is simple, but may be costly because it eager loads the entire application 
 
 ### Option 2: Preload a Collapsed Directory
 
-You can also store the files that define the hierarchy in a dedicated directory. We eager load these few files on boot and reload even if the STI is not used.  
+You can also store the files that define the hierarchy in a dedicated directory. We eager load these few files on boot and reload even if the STI is not used.
 
 The directory is not meant to represent a namespace, its sole purpose is to group the STI models:
 
