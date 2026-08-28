@@ -10,7 +10,7 @@ After reading this guide, you will know:
 * The difference between autoloading, reloading, and eager loading
 * Configuration options and directory structure for autoloading
 * The difference between the *main* and *once* autoloaders
-* How Engines and Single Table Inheritance to work with autoloading
+* Considerations for Engines and Single Table Inheritance
 * How to customize file names and namespaces with `zeitwerk`
 * How to troubleshoot autoloading
 
@@ -19,7 +19,7 @@ After reading this guide, you will know:
 Introduction
 ------------
 
-In order to understand what autoloading works and why autoloading exists in Rails, it is useful to understand the following about Ruby:
+In order to understand how autoloading works and why autoloading exists in Rails, it is useful to understand the following about Ruby.
 
 In Ruby, the name of a class or module is a constant. Furthermore, there is no
 inherent relationship between a file's name and the constants it defines.
@@ -70,17 +70,19 @@ in the "background" (without an explicit `require` statement).
 One question to consider is: _when_ should constants be loaded? Autoloading,
 reloading, and eager loading are three different answers to that question: on
 first reference (autoloading), all at once during boot (eager loading), or again
-after a file changes (reloading). See [Eager Loading]() and [Reloading]() for
-more detail on those. We focus on how autoloading works here.
+after a file changes (reloading). See [Eager Loading](#eager-loading) and
+[Reloading](#reloading) for more detail on those. We focus on how autoloading
+works here.
 
 There are two autoloaders: `main` and `once`. The `main` autoloader manages
-reloadable code, which is nearly everything you write, including all of `app`.
-The `once` autoloader's purpose is to manage code that is autoloaded but never
-reloaded. Both load code the same way, reloading vs. not is the only difference between them.
+reloadable code, which is nearly everything you write, including everything in
+the `app` directory. The `once` autoloader's purpose is to manage code that is
+autoloaded but never reloaded. Both load code the same way, reloading vs. not is
+the only difference between them.
 
 Another question is: _which_ files are autoloaded? The Zeitwerk loaders manage
 the code in your application's autoload paths, which by default are all
-subdirectories of `app` directory. Zeitwerk loaders do _not_ manage the Ruby
+subdirectories of the `app` directory. Zeitwerk loaders do _not_ manage the Ruby
 standard library, gem dependencies, the Rails components themselves, or the
 application `lib` directory. That code has to be loaded as usual, with
 `require`.
@@ -88,7 +90,7 @@ application `lib` directory. That code has to be loaded as usual, with
 ### How Autoloading Works
 
 Autoloading relies on the directory structure and file naming convention.
-In a Rails application (unlike other Ruby programs), file names have to match the constants they define, with directories acting as namespaces. For example:
+In a Rails application (unlike ordinary Ruby programs), file names have to match the constants they define, with directories acting as namespaces. For example:
 
 - file `app/helpers/users_helper.rb` should define `UsersHelper`
 - file `app/controllers/admin/payments_controller.rb` should define `Admin::PaymentsController`.
@@ -96,7 +98,7 @@ In a Rails application (unlike other Ruby programs), file names have to match th
 NOTE: Rails configures Zeitwerk to infer file names using the [`String#camelize`](https://api.rubyonrails.org/classes/String.html#method-i-camelize) method. For example, it expects that `app/controllers/users_controller.rb` defines the constant `UsersController` because that is what `"users_controller".camelize` returns. The section [Customizing Inflections](#customizing-file-names-and-defined-constants) below documents ways to override this default.
 
 Because file names carry that information, Rails can determine which file
-defines which constant by its directory and file name.
+defines which constant by its directory and file name alone.
 
 Rails sets up loaders that build this map from the autoload paths during the
 application's boot process. For each constant, the loaders register a lazy-load
