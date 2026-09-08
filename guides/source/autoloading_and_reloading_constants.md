@@ -3,15 +3,15 @@
 Autoloading and Reloading Constants
 ===================================
 
-This guide documents how autoloading and reloading works in `zeitwerk` mode.
+This guide documents how autoloading, reloading, and eager loading work.
 
 After reading this guide, you will know:
 
 * The difference between autoloading, reloading, and eager loading
 * Configuration options and directory structure for autoloading
 * The difference between the *main* and *once* autoloaders
-* Considerations for Engines and Single Table Inheritance
-* How to customize file names and namespaces with `zeitwerk`
+* Considerations for engines and Single Table Inheritance
+* How to customize inflection rules for file names and namespaces
 * How to troubleshoot autoloading
 
 --------------------------------------------------------------------------------
@@ -58,14 +58,12 @@ This is possible thanks to the [Zeitwerk](https://github.com/fxn/zeitwerk)
 library, which sets up loaders in your Rails application that provide
 autoloading (as well as reloading and eager loading).
 
-NOTE: Zeitwerk is a dependency of Active Support, so it is present in every
-Rails application and automatically set up and initialized during the boot process.
+NOTE: Zeitwerk is present in every Rails application and automatically set up
+and initialized during the boot process.
 
 ### What is Autoloading?
 
-The idea behind autoloading is to load the constants (that represent class and
-module names such as `User`), once they are referenced, and do so automatically
-in the "background" (without an explicit `require` statement).
+The idea behind autoloading is to load constants the first time they are referenced, and do so automatically in the "background" (without an explicit require statement). These constants typically are your application classes and modules, though they could also store any other Ruby object like integers or strings.
 
 One question to consider is: _when_ should constants be loaded? Autoloading,
 reloading, and eager loading are three different answers to that question: on
@@ -82,10 +80,11 @@ the only difference between them.
 
 Another question is: _which_ files are autoloaded? The Zeitwerk loaders manage
 the code in your application's autoload paths, which by default are all
-subdirectories of the `app` directory. Zeitwerk loaders do _not_ manage the Ruby
-standard library, gem dependencies, the Rails components themselves, or the
-application `lib` directory. That code has to be loaded as usual, with
-`require`.
+subdirectories of the `app` directory. Zeitwerk also manages the `lib` directory
+when `config.autoload_lib` is configured (as explained
+[later](#autoloading-lib)). Zeitwerk loaders do _not_ manage the Ruby standard
+library, gem dependencies, or the Rails components themselves. That code has to
+be loaded as usual, with `require`.
 
 ### How Autoloading Works
 
@@ -111,9 +110,10 @@ Object.autoload(:User, "#{Rails.root}/app/models/user.rb")
 ```
 
 The first time your application references `User` and finds no such constant
-defined, Zeitwerk consults the loader's registered entries, and loads the file
+defined, Ruby consults the loader's registered entries, and loads the file
 (using `require`). This is how autoloading works and is why you do not have to
-write explicit `require` calls for the classes and modules that Zeitwerk manages (aka the autoload paths).
+write explicit `require` calls for the application classes and modules that
+Zeitwerk manages.
 
 Adding Autoload Paths
 ---------------------
@@ -150,7 +150,7 @@ module MyApplication
 end
 ```
 
-Also, engines can push in body of the engine class and in their own `config/environments/*.rb`. TODO: add see Engines section below more details on working with Engines with autoloading.
+Also, engines can push in body of the engine class and in their own `config/environments/*.rb`. TODO: add see Engines section below more details on working with engines with autoloading.
 
 WARNING. Please do not mutate `ActiveSupport::Dependencies.autoload_paths`; the public interface to change autoload paths is `config.autoload_paths`.
 
