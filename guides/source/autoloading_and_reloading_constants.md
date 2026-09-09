@@ -118,18 +118,17 @@ Zeitwerk manages.
 Adding Autoload Paths
 ---------------------
 
-We refer to the list of application directories whose contents are autoloaded and (optionally) reloaded as _autoload paths_. For example, `app/models`.
+We refer to the list of application directories whose contents are autoloaded and (optionally) reloaded as _autoload paths_. For example, `app/models/concerns` is an authoload path by default since it's inside `app`.
 
-Directories inside an autoload path act as namespaces, so
-`app/models/billing/invoice.rb` defines `Billing::Invoice`. Files directly
-inside the authload path define top-level constants, so `app/models/user.rb`
-defines `User`, not `Models::User`. In Ruby, top-level constants belong to
-`Object`, so Zeitwerk describes autoload paths as representing the root
-namespace.
+Files directly inside the authload path define top-level constants, so
+`app/models/user.rb` defines `User`, not `Models::User`. In Ruby, top-level
+constants belong to `Object`, so Zeitwerk describes autoload paths as
+representing the root namespace. Directories _inside_ an autoload path act as
+namespaces, so `app/models/billing/invoice.rb` defines `Billing::Invoice`.
 
 INFO: Autoload paths are called _root directories_ in Zeitwerk documentation, but we'll stay with "autoload path" in this guide.
 
-By default, the autoload paths of an application consist of all the subdirectories of `app` that exist when the application boots ---except for `assets`, `javascript`, and `views`--- plus the autoload paths of engines it might depend on.
+By default, the autoload paths of an application consist of all the subdirectories of `app` that exist when the application boots, except for `assets`, `javascript`, and `views`, plus the autoload paths of engines it might depend on.
 
 For example, if `UsersHelper` is implemented in `app/helpers/users_helper.rb`, the module is autoloadable, you do not need (and should not write) a `require` call for it:
 
@@ -150,17 +149,16 @@ module MyApplication
 end
 ```
 
-Also, engines can push in body of the engine class and in their own `config/environments/*.rb`. TODO: add see Engines section below more details on working with engines with autoloading.
+Also, engines can do this in the body of the engine class and in their own `config/environments/*.rb`. See [engines section](#autoloading-and-engines) below for more details on autoloading with engines.
 
 WARNING. Please do not mutate `ActiveSupport::Dependencies.autoload_paths`; the public interface to change autoload paths is `config.autoload_paths`.
 
 WARNING: You cannot autoload code in the autoload paths while the application boots. In particular, directly in `config/initializers/*.rb`. Please check [_Autoloading when the application boots_](#autoloading-when-the-application-boots) down below for valid ways to do that.
 
-TODO: find a good place to constract "main" and "once" autoloaders and explain the difference.
 The autoload paths are managed by the `Rails.autoloaders.main` autoloader.
 
-Autoloading `/lib`
------------------
+Autoloading `lib`
+----------------
 
 By default, the `lib` directory is not in the autoload paths of applications or engines. The configuration method `config.autoload_lib` adds the `lib` directory to `config.autoload_paths` and `config.eager_load_paths`. It can be invoked from `config/application.rb` or `config/environments/*.rb`:
 
@@ -177,15 +175,22 @@ With that in place, `lib` follows the same naming convention as the rest of your
 application: `lib/payment_gateway.rb` defines `PaymentGateway`, and no `require`
 call is needed to use it.
 
-The `lib` directory may have subdirectories that should not be managed by the autoloaders. You can pass their name relative to `lib` in the required `ignore` keyword argument, as shown above `ignore: %w(assets tasks)`.
+The `lib` directory may have subdirectories that should not be managed by the
+autoloaders. You can pass their name relative to `lib` in the required `ignore`
+keyword argument, as shown above: `ignore: %w(assets tasks)`.
 
-The reason it makes sense to ignore those directories is because the autoloaders
-expect every `.rb` file they manage to define a constant matching its name. Rake
-tasks in `lib/tasks` define no constants at all, and they are meant to run once
-when invoked, not to be loaded on boot. And `lib/assets` typically holds no Ruby
-at all.
+Zeitwerk ignores files that do not have a `.rb` extension, so a `.rake`, `.js`,
+or `.css` file is never autoloaded, reloaded, or eager loaded even if it sits in
+an autoload path. But the loaders still have to scan the project tree to find
+the `.rb` files they do manage. Telling them a subdirectory holds no Ruby lets
+them skip it and that is the reason for an explicit `ignore` list.
 
-The `ignore` list should have all `lib` subdirectories that do not contain files with `.rb` extension, or that should not be reloaded or eager loaded. A complete ignore list may look like this:
+Since `lib/assets` typically holds no Ruby files and `lib/tasks` holds Rake
+tasks with `.rake` extension, they are on the ignore list.
+
+The `ignore` list should have all `lib` subdirectories that do not contain files
+with `.rb` extension, or that should not be reloaded or eager loaded. A complete
+ignore list may look like this:
 
 ```ruby
 config.autoload_lib(ignore: %w(assets tasks templates generators middleware))
@@ -243,7 +248,7 @@ Reloading
 
 Rails automatically reloads classes and modules if application files in the autoload paths change (in `development`). More precisely, if the web server is running and application files have been modified, Rails unloads all autoloaded constants managed by the `main` autoloader just before the next request is processed. That way, application classes or modules used during that request will be autoloaded again, thus picking up their current implementation in the file system.
 
-Reloading can be enabled or disabled. The setting that controls this behavior is [`config.enable_reloading`][], which is `true` by default in `development` mode, and `false` by default in `production` mode. For backwards compatibility, Rails also supports `config.cache_classes`, which is equivalent to `!config.enable_reloading`.
+Reloading can be enabled or disabled. The setting that controls this behavior is [`config.enable_reloading`][], which is `true` by default in `development` mode, and `false` by default in `production` and `test` modes. For backwards compatibility, Rails also supports `config.cache_classes`, which is equivalent to `!config.enable_reloading`.
 
 Rails uses an evented file monitor to detect file changes by default.  It can be configured instead to detect file changes by walking the autoload paths. This is controlled by the [`config.file_watcher`][] setting.
 
@@ -293,21 +298,18 @@ irb> joe.class == alice.class
 Another situation in which you may find this gotcha is subclassing reloadable classes in a place that is not reloaded:
 
 ```ruby
-# lib/vip_user.rb
+# lib/vip_user.rb (assuming lib is not in autoload paths)
 class VipUser < User
 end
 ```
 
-if `User` is reloaded, since `VipUser` is not, the superclass of `VipUser` is the original stale class object.
+If `User` is reloaded, since `VipUser` is not, the superclass of `VipUser` is the original stale `User` class.
 
-TODO: review and revise LLM paste after working on the other "autoloading without reloading section"
 The consequence is that the stale object keeps behaving as it did when it was
 first loaded. Your edits are on disk and in the reloaded class, but the stale
 object does not see them: methods you added are missing, methods you deleted are
 still there, and in the `VipUser` case, instances of a class that looks like it
-inherits from `User` no longer share `User`'s ancestry. Nothing raises. The code
-simply runs against an older version of itself, which is why these bugs tend to
-present as "my change had no effect" rather than as an error.
+inherits from `User` no longer share `User`'s ancestry. No errors are raised.
 
 WARNING: Do not cache reloadable classes or modules.
 
