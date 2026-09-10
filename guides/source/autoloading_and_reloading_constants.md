@@ -223,7 +223,7 @@ NOTE: `config.autoload_lib` is not available for engines.
 Eager Loading
 -------------
 
-In production-like environments it is generally better to load all the application code when the application boots. Eager loading puts everything in memory ready to serve requests right away, and it is also [CoW](https://en.wikipedia.org/wiki/Copy-on-write)-friendly (which means Zeitwerk
+In production-like environments it's generally better to load all the application code when the application boots. Eager loading puts everything in memory ready to serve requests right away, and it is also [CoW](https://en.wikipedia.org/wiki/Copy-on-write)-friendly (which means Zeitwerk
 defines every constant up front, before the server forks its workers, so those
 workers share the loaded code in memory rather than each holding its own copy,
 reducing total memory use).
@@ -239,6 +239,14 @@ method. Any gem that manages its own code with Zeitwerk sets up a loader too, so
 your application's loaders are not the only ones in the process. The
 `eager_load_all` method broadcasts `eager_load` to all loaders and ensures all
 gem dependencies managed by Zeitwerk are eager-loaded too.
+
+NOTE: The more accurate terminology would be _eager_ (upfront) vs. _lazy_ (on
+demand) loading. You are _autoloading_ in both cases or whenever you don't
+explicitly use `require`. Eager loading is a recursive autoload because while
+you eager load, top-level references like modules in include calls or
+superclasses may have not been loaded yet. In that case, they are autoloaded.
+However, since the "autoloading vs. "eager loading" terminology has been used
+for decades, this guide preserves it.
 
 [`config.eager_load`]: configuring.html#config-eager-load
 [`config.rake_eager_load`]: configuring.html#config-rake-eager-load
@@ -298,12 +306,12 @@ irb> joe.class == alice.class
 Another situation in which you may find this gotcha is subclassing reloadable classes in a place that is not reloaded:
 
 ```ruby
-# lib/vip_user.rb (assuming lib is not in autoload paths)
+# lib/vip_user.rb
 class VipUser < User
 end
 ```
 
-If `User` is reloaded, since `VipUser` is not, the superclass of `VipUser` is the original stale `User` class.
+If `User` is reloaded, since `VipUser` is not, the superclass of `VipUser` is the original stale `User` class (the example assumes `lib` is not in the autoload paths and hence `VipUser`  inside `lib` won't be reloaded).
 
 The consequence is that the stale object keeps behaving as it did when it was
 first loaded. Your edits are on disk and in the reloaded class, but the stale
