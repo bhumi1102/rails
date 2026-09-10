@@ -34,10 +34,11 @@ For example, the `PostsController` class below refers to
 you would need to call `require` at the top of the file to ensure they're available for use:
 
 ```ruby
+# -----------------------
 # Do not do this in Rails
 require "application_controller"
 require "post"
-# Do not do this in Rails
+# -----------------------
 
 class PostsController < ApplicationController
   def index
@@ -520,7 +521,12 @@ end
 
 ### Loading Code That Is Externally Cached
 
-Some applications take a class or module object, and store it in an external place that is not reloaded. If this class or module is reloadable you run into the [stale object](#reloading-and-stale-objects) problem. One example is middleware:
+Some configuration takes a class or module object and stores it in an external
+place, somewhere the reload cycle never touches (the framework's own state, a
+gem's registry). Reloading only replaces constants in the autoload paths, so
+anything already holding the old object keeps holding it. If the class you
+handed over is reloadable, you have the [stale
+object](#reloading-and-stale-objects) problem. One example is middleware:
 
 ```ruby
 config.middleware.use MyApp::Middleware::Foo
