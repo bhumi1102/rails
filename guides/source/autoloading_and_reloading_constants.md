@@ -26,10 +26,12 @@ inherent relationship between a file's name and the constants it defines.
 Nothing connects the file `user.rb` to the constant `User`.
 
 That means an ordinary Ruby program has to load files explicitly before using
-the constants they define. When Ruby executes a `require` call, whatever classes
-or modules the given file defines come into existence. For example, the
-`PostsController` class below refers to `ApplicationController` and `Post` so
-you would need to call `require` to add them (if this was an ordinary Ruby program):
+the constants they define. When Ruby executes a `require` call, the classes
+and modules defined in that file come into existence. 
+
+For example, the `PostsController` class below refers to 
+`ApplicationController` and `Post`. If this was an ordinary Ruby program,
+you would need to call `require` at the top of the file to ensure they're available for use:
 
 ```ruby
 # Do not do this in Rails
@@ -411,7 +413,7 @@ Rails.application.config.active_job.custom_serializers << MoneySerializer
 
 Initializers run once at boot and never again, so referencing a reloadable
 constant there would cause Rails to raise a `NameError`. A constant that is
-never reloaded, such as the `MoneySeriablizer`, has no such problem, and can be used in initializers freely.
+never reloaded, such as the `MoneySerializer`, has no such problem, and can be used in initializers freely.
 
 INFO: Technically, you can autoload classes and modules managed by the `once` autoloader in any initializer that runs after `:bootstrap_hook`.
 
@@ -592,7 +594,7 @@ Then, use `config.user_model.constantize` to get the current class object.
 Loading Constants to Allow Single Table Inheritance
 ---------------------------------------------------
 
-[Single Table Inheritance](association_basics.html#single-table-inheritance-sti)(STI) doesn't play well with lazy loading: Active Record has to be aware of STI model hierarchies to work correctly, but when lazy loading, classes are precisely loaded only on demand!
+[Single Table Inheritance](association_basics.html#single-table-inheritance-sti)(STI) doesn't play well with lazy loading. Active Record has to be aware of STI model hierarchies to work correctly, but when lazy loading, classes are loaded on demand, meaning Active Record cannot infer the inheritance tree as it needs all relevant classes to be loaded.
 
 To address this fundamental mismatch we need to preload STI models. There are a few options to accomplish this, with different trade-offs. Let's see them.
 
@@ -796,7 +798,7 @@ Rails.application.config.watchable_dirs[app_services_dir] = [:rb]
 
 Custom namespaces are also supported for the `once` autoloader. However, since that one is set up earlier in the boot process, the configuration cannot be done in an application initializer. Instead, please put it in `config/application.rb`, for example.
 
-Autoloading and Engines
+Autoloading In Engines
 -----------------------
 
 [Engines](https://guides.rubyonrails.org/engines.html) run in the context of a parent application, and their code is autoloaded, reloaded, and eager loaded by the parent application. If the application runs in `zeitwerk` mode, the engine code is loaded by `zeitwerk` mode. If the application runs in `classic` mode, the engine code is loaded by `classic` mode.
